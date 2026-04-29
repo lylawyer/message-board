@@ -306,10 +306,22 @@
     <script>
       // 管理员页面 JavaScript 功能
 
-      // showToast 函数已移至 js/utils.js-${month}-${day} ${hour}:${minute}`;
-      }
+      // showToast 函数已移至 js/utils.js
 
-      // escapeHtml 函数已移至 js/utils.js else {
+      // formatDateTime 函数已移至 js/utils.js
+
+      // escapeHtml 函数已移至 js/utils.js
+
+      // 检查用户认证状态
+      async function checkAuth() {
+          try {
+              const user = await client.auth.getUser();
+              console.log('checkAuth getUser:', user);
+              if (user && user.success && user.data) {
+                  console.log('User is logged in, showing admin page');
+                  showAdminPage();
+                  loadAdminMessages();
+              } else {
                   console.log('User not logged in or getUser failed');
               }
           } catch (error) {
@@ -817,10 +829,17 @@
               // 确保客户端已初始化
               if (!client) {
                   console.log('Client not initialized, creating new...');
-                  client = aipexbase.createClient({
-                      baseUrl: 'https://baas.kuafuai.net/baas-api',
-                      apiKey: 'baas_zRu6UoOb'
-                  });
+                  try {
+                      client = aipexbase.createClient({
+                          baseUrl: 'https://baas.kuafuai.net/baas-api',
+                          apiKey: 'baas_zRu6UoOb'
+                      });
+                      console.log('Client created successfully');
+                  } catch (err) {
+                      console.error('Failed to create client:', err);
+                      showToast('系统初始化失败，请刷新页面重试', 'error');
+                      return;
+                  }
               }
 
               const username = document.getElementById('username').value.trim();
@@ -837,17 +856,20 @@
               submitBtn.innerHTML = '登录中...';
 
               try {
+                  console.log('Attempting login with:', { username });
                   const result = await client.auth.login({
                       user_name: username,
                       password: password
                   });
 
-                  if (result.success) {
+                  console.log('Login result:', result);
+
+                  if (result && result.success) {
                       showToast('登录成功！', 'success');
                       showAdminPage();
                       loadAdminMessages();
                   } else {
-                      showToast('登录失败: ' + result.message, 'error');
+                      showToast('登录失败: ' + (result.message || '未知错误'), 'error');
                   }
               } catch (error) {
                   console.error('login error:', error);
