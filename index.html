@@ -54,36 +54,8 @@
             .gradient-subtle { @apply bg-gradient-to-br from-gray-50 to-gray-100; }
         }
     </style>
-    <script src="https://cdn.jsdelivr.net/npm/aipexbase-js/dist/aipexbase.umd.min.js"></script>
-    <script>
-        // 初始化 - 创建aipexbase客户端
-        var client = null;
-
-        // 自执行初始化函数
-        (function() {
-            console.log('Script loaded, checking aipexbase...');
-
-            function tryInit() {
-                if (typeof aipexbase !== 'undefined') {
-                    console.log('aipexbase available, creating client...');
-                    client = aipexbase.createClient({
-                        baseUrl: 'https://baas.kuafuai.net/baas-api',
-                        apiKey: 'baas_zRu6UoOb'
-                    });
-                    console.log('Client initialized:', client !== null);
-                    // 初始化留言板
-                    if (typeof init === 'function') {
-                        init();
-                    }
-                } else {
-                    console.log('aipexbase not ready, retrying...');
-                    setTimeout(tryInit, 50);
-                }
-            }
-
-            tryInit();
-        })();
-    </script>
+    <!-- 加载 aipexbase SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/aipexbase-js@latest/dist/aipexbase.umd.min.js"></script>
 </head>
 <body class="gradient-subtle min-h-screen">
     <!-- 顶部导航 -->
@@ -184,12 +156,13 @@
                 </div>
                 <button
                     type="submit"
+                    id="submit-btn"
                     class="w-full gradient-primary text-white font-medium py-3 px-6 rounded-xl hover:shadow-lg transition-smooth flex items-center justify-center space-x-2"
                 >
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
                     </svg>
-                    <span>发布留言 </span>
+                    <span>发布留言</span>
                 </button>
             </form>
         </div>
@@ -202,9 +175,7 @@
                 </svg>
                 所有留言
             </h2>
-            <div id="messages-list" class="space-y-4">
-                <!-- 留言卡片动态JS渲染 -->
-            </div>
+            <div id="messages-list" class="space-y-4"></div>
             <div id="loading" class="text-center py-8 text-gray-400">
                 <svg class="animate-spin w-8 h-8 mx-auto mb-2" fill="none" viewBox="0 0 24 24">
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -217,6 +188,7 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
                 </svg>
                 <p class="text-red-400 mb-2">加载失败</p>
+                <p id="error-msg" class="text-gray-400 text-sm mb-2"></p>
                 <button onclick="retryLoad()" class="text-primary-600 hover:text-primary-700 text-sm font-medium">点击重试</button>
             </div>
             <div id="empty-state" class="hidden text-center py-12">
@@ -232,12 +204,45 @@
     <div id="toast-container" class="fixed top-4 right-4 z-50 space-y-3"></div>
 
     <script>
-        // 配置常量
-        const API_TIMEOUT = 8000; // API请求超时时间（毫秒）
+        // ========== 全局变量 ==========
+        var client = null;
+        const API_TIMEOUT = 10000; // 10秒超时
         const NICKNAME_MAX = 20;
         const CONTENT_MAX = 1000;
+        let pinnedMessageIds = [];
+        let privateMessageIds = [];
 
-        // Toast 提示函数
+        // ========== 初始化 aipexbase 客户端 ==========
+        function initClient() {
+            return new Promise((resolve, reject) => {
+                let attempts = 0;
+                const maxAttempts = 100; // 最多等待5秒 (100 * 50ms)
+
+                function tryInit() {
+                    attempts++;
+                    if (typeof aipexbase !== 'undefined') {
+                        try {
+                            client = aipexbase.createClient({
+                                baseUrl: 'https://baas.kuafuai.net/baas-api',
+                                apiKey: 'baas_zRu6UoOb'
+                            });
+                            console.log('aipexbase 客户端初始化成功');
+                            resolve(client);
+                        } catch (e) {
+                            reject(e);
+                        }
+                    } else if (attempts >= maxAttempts) {
+                        reject(new Error('SDK 加载超时，请刷新页面'));
+                    } else {
+                        setTimeout(tryInit, 50);
+                    }
+                }
+
+                tryInit();
+            });
+        }
+
+        // ========== 工具函数 ==========
         function showToast(message, type = 'success') {
             const container = document.getElementById('toast-container');
             const toast = document.createElement('div');
@@ -267,27 +272,30 @@
             }, 3000);
         }
 
-        // 格式化时间
         function formatDateTime(dateStr) {
             if (!dateStr) return '';
             const date = new Date(dateStr);
             const now = new Date();
             const diff = now - date;
-
             if (diff < 60000) return '刚刚';
             if (diff < 3600000) return `${Math.floor(diff / 60000)} 分钟前`;
             if (diff < 86400000) return `${Math.floor(diff / 3600000)} 小时前`;
-
             const year = date.getFullYear();
             const month = String(date.getMonth() + 1).padStart(2, '0');
             const day = String(date.getDate()).padStart(2, '0');
             const hour = String(date.getHours()).padStart(2, '0');
             const minute = String(date.getMinutes()).padStart(2, '0');
-
             return `${year}-${month}-${day} ${hour}:${minute}`;
         }
 
-        // 带超时的fetch封装
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // ========== API 请求封装 ==========
         function fetchWithTimeout(promise, timeout = API_TIMEOUT) {
             return Promise.race([
                 promise,
@@ -297,13 +305,7 @@
             ]);
         }
 
-        // 初始化：置顶留言的 ID 数组
-        let pinnedMessageIds = [];
-
-        // 初始化：私密留言的ID数组
-        let privateMessageIds = [];
-
-        // 统一加载配置（nickname='系统' 且 status='hidden' 的记录，一次请求获取所有配置）
+        // ========== 数据库操作 ==========
         async function loadAllConfig() {
             try {
                 const result = await fetchWithTimeout(
@@ -311,14 +313,11 @@
                         .eq('nickname', '系统')
                         .eq('status', 'hidden')
                 );
-
-                if (result.success && result.data && result.data.length > 0) {
-                    // 解析置顶配置
+                if (result.success && result.data) {
                     const pinnedConfig = result.data.find(m => m.content && m.content.startsWith('[PINNED_CONFIG]'));
                     if (pinnedConfig) {
                         pinnedMessageIds = JSON.parse(pinnedConfig.content.replace('[PINNED_CONFIG] ', ''));
                     }
-                    // 解析私密配置
                     const privateConfig = result.data.find(m => m.content && m.content.startsWith('[PRIVATE_CONFIG]'));
                     if (privateConfig) {
                         privateMessageIds = JSON.parse(privateConfig.content.replace('[PRIVATE_CONFIG] ', ''));
@@ -326,53 +325,9 @@
                 }
             } catch (e) {
                 console.error('加载配置失败:', e);
-                // 配置加载失败不影响主流程，使用空配置继续
             }
         }
 
-        // 保存私密配置
-        async function savePrivateConfig() {
-            try {
-                const result = await fetchWithTimeout(
-                    client.db.from('messages').list()
-                        .eq('nickname', '系统')
-                        .eq('status', 'hidden')
-                );
-
-                if (result.success && result.data && result.data.length > 0) {
-                    const configMsg = result.data.find(m => m.content && m.content.startsWith('[PRIVATE_CONFIG]'));
-                    if (configMsg) {
-                        await fetchWithTimeout(
-                            client.db.from('messages').update()
-                                .set({ content: '[PRIVATE_CONFIG] ' + JSON.stringify(privateMessageIds) })
-                                .eq('id', configMsg.id)
-                        );
-                    } else {
-                        await fetchWithTimeout(
-                            client.db.from('messages').insert().values({
-                                nickname: '系统',
-                                content: '[PRIVATE_CONFIG] ' + JSON.stringify(privateMessageIds),
-                                status: 'hidden',
-                                created_at: new Date().toISOString()
-                            })
-                        );
-                    }
-                } else {
-                    await fetchWithTimeout(
-                        client.db.from('messages').insert().values({
-                            nickname: '系统',
-                            content: '[PRIVATE_CONFIG] ' + JSON.stringify(privateMessageIds),
-                            status: 'hidden',
-                            created_at: new Date().toISOString()
-                        })
-                    );
-                }
-            } catch (e) {
-                console.error('保存私密配置失败:', e);
-            }
-        }
-
-        // 加载公告
         async function loadAnnouncement() {
             try {
                 const result = await fetchWithTimeout(
@@ -380,8 +335,7 @@
                         .eq('nickname', '系统')
                         .eq('status', 'hidden')
                 );
-
-                if (result.success && result.data && result.data.length > 0) {
+                if (result.success && result.data) {
                     const announcementMsg = result.data.find(m => m.content && m.content.startsWith('[ANNOUNCEMENT]'));
                     if (announcementMsg) {
                         const content = announcementMsg.content.replace('[ANNOUNCEMENT] ', '');
@@ -394,11 +348,10 @@
                 }
             } catch (e) {
                 console.error('加载公告失败:', e);
-                // 公告加载失败不影响主流程
             }
         }
 
-        // 渲染留言列表
+        // ========== 渲染留言 ==========
         function renderMessages(messages) {
             const listEl = document.getElementById('messages-list');
             const emptyEl = document.getElementById('empty-state');
@@ -406,10 +359,8 @@
             const errorEl = document.getElementById('error-state');
             const countEl = document.getElementById('message-count');
 
-            // 隐藏加载和错误状态
             loadingEl.classList.add('hidden');
             errorEl.classList.add('hidden');
-
             countEl.textContent = messages.length;
 
             if (messages.length === 0) {
@@ -420,7 +371,7 @@
 
             emptyEl.classList.add('hidden');
 
-            // 置顶留言排在最前面
+            // 置顶排在前面
             messages.sort((a, b) => {
                 const aPinned = pinnedMessageIds.includes(a.id);
                 const bPinned = pinnedMessageIds.includes(b.id);
@@ -434,53 +385,25 @@
                 const isAdminPost = msg.nickname === '管理员';
                 const isPrivate = privateMessageIds.includes(msg.id);
 
-                // 私密留言特殊处理
                 if (isPrivate) {
                     return `
-                    <div class="bg-gray-50 rounded-xl shadow-md p-5 hover:shadow-lg transition-smooth animate-slide-up border border-gray-200">
-                        <div class="flex items-start justify-between mb-3">
-                            <div class="flex items-center space-x-3">
-                                <div class="w-10 h-10 rounded-full bg-gray-400 flex items-center justify-center text-white font-semibold">
-                                    🔒
-                                </div>
-                                <div>
-                                    <div class="flex items-center space-x-2">
-                                        <h3 class="font-semibold text-gray-600">${escapeHtml(msg.nickname)}</h3>
-                                        <span class="px-2 py-0.5 rounded-full text-xs bg-gray-200 text-gray-500">🔒 私密</span>
-                                    </div>
-                                    <p class="text-xs text-gray-400">${formatDateTime(msg.created_at)}</p>
-                                </div>
+                    <div class="bg-gray-50 rounded-xl shadow-md p-5 border border-gray-200">
+                        <div class="flex items-center space-x-3">
+                            <div class="w-10 h-10 rounded-full bg-gray-400 flex items-center justify-center text-white font-semibold">🔒</div>
+                            <div>
+                                <h3 class="font-semibold text-gray-600">${escapeHtml(msg.nickname)}</h3>
+                                <p class="text-xs text-gray-400">${formatDateTime(msg.created_at)}</p>
                             </div>
                         </div>
-                        <div class="bg-gray-100 rounded-lg p-4 text-center mb-3">
-                            <svg class="w-8 h-8 mx-auto mb-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
-                            </svg>
-                            <p class="text-sm text-gray-500">这条留言是私密的</p>
-                            <p class="text-xs text-gray-400 mt-1">仅管理员可见</p>
+                        <div class="mt-3 p-4 bg-gray-100 rounded-lg text-center">
+                            <p class="text-sm text-gray-500">🔒 私密留言，仅管理员可见</p>
                         </div>
-                        ${msg.admin_reply ? `
-                        <div class="mt-3 pt-3 border-t border-gray-200">
-                            <div class="flex items-start space-x-3">
-                                <div class="w-8 h-8 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center text-white text-sm font-semibold flex-shrink-0">
-                                    💎
-                                </div>
-                                <div class="flex-1">
-                                    <div class="flex items-center space-x-2 mb-1">
-                                        <span class="text-sm font-semibold text-purple-600">管理员回复</span>
-                                        <span class="text-xs text-gray-400">${msg.reply_time ? formatDateTime(msg.reply_time) : ''}</span>
-                                    </div>
-                                    <p class="text-sm text-gray-700">${escapeHtml(msg.admin_reply)}</p>
-                                </div>
-                            </div>
-                        </div>
-                        ` : ''}
                     </div>
                     `;
                 }
 
                 return `
-                <div class="bg-white rounded-xl shadow-md p-5 hover:shadow-lg transition-smooth animate-slide-up ${isPinned ? 'ring-2 ring-yellow-400' : ''}">
+                <div class="bg-white rounded-xl shadow-md p-5 ${isPinned ? 'ring-2 ring-yellow-400' : ''}">
                     <div class="flex items-start justify-between mb-3">
                         <div class="flex items-center space-x-3">
                             <div class="w-10 h-10 rounded-full ${isAdminPost ? 'bg-gradient-to-r from-purple-500 to-pink-500' : 'gradient-primary'} flex items-center justify-center text-white font-semibold">
@@ -516,20 +439,13 @@
             }).join('');
         }
 
-        // HTML转义
-        function escapeHtml(text) {
-            if (!text) return '';
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
-
-        // 加载留言
+        // ========== 加载留言 ==========
         async function loadMessages() {
             const loadingEl = document.getElementById('loading');
             const errorEl = document.getElementById('error-state');
             const emptyEl = document.getElementById('empty-state');
             const listEl = document.getElementById('messages-list');
+            const errorMsg = document.getElementById('error-msg');
 
             loadingEl.classList.remove('hidden');
             errorEl.classList.add('hidden');
@@ -542,65 +458,51 @@
                         .eq('status', 'visible')
                         .order('created_at', 'desc')
                 );
-
                 loadingEl.classList.add('hidden');
-
                 if (result.success) {
                     renderMessages(result.data || []);
                 } else {
                     errorEl.classList.remove('hidden');
-                    console.error('加载留言失败:', result.message);
+                    errorMsg.textContent = result.message || '加载失败';
                 }
             } catch (error) {
                 loadingEl.classList.add('hidden');
                 errorEl.classList.remove('hidden');
+                errorMsg.textContent = error.message || '网络错误';
                 console.error('加载留言失败:', error);
             }
         }
 
-        // 重试加载
         function retryLoad() {
             loadMessages();
         }
 
-        // 禁止使用的昵称列表（去重）
-        const forbiddenNicknames = [
-            '管理员', '官方', 'admin', 'administrator',
-            '管理', '系统', '在野管理员'
-        ];
+        // ========== 提交留言 ==========
+        const forbiddenNicknames = ['管理员', '官方', 'admin', 'administrator', '管理', '系统', '在野管理员'];
 
-        // 检查是否为禁止使用的昵称
         function isForbiddenNickname(nickname) {
             const lowerNickname = nickname.toLowerCase();
-            return forbiddenNicknames.some(name =>
-                lowerNickname.includes(name.toLowerCase())
-            );
+            return forbiddenNicknames.some(name => lowerNickname.includes(name.toLowerCase()));
         }
-
-        // 检查是否为真正的管理员
-        let isAdmin = false;
 
         async function checkIfAdmin() {
             try {
                 const user = await fetchWithTimeout(client.auth.getUser());
                 if (user && user.data && (user.data.user_name === 'admin_new' || user.data.user_name === 'admin')) {
-                    isAdmin = true;
                     return true;
                 }
-            } catch (e) {
-                // 不是管理员
-            }
+            } catch (e) {}
             return false;
         }
 
-        // 字符计数
         document.getElementById('content').addEventListener('input', function() {
             document.getElementById('char-count').textContent = this.value.length;
         });
 
-        // 提交留言
         document.getElementById('message-form').addEventListener('submit', async (e) => {
             e.preventDefault();
+            const submitBtn = document.getElementById('submit-btn');
+            const originalText = submitBtn.innerHTML;
 
             let nickname = document.getElementById('nickname').value.trim();
             const content = document.getElementById('content').value.trim();
@@ -610,35 +512,23 @@
                 showToast('请填写昵称和留言内容', 'warning');
                 return;
             }
-
-            // 检查昵称长度
             if (nickname.length > NICKNAME_MAX) {
                 showToast(`昵称不能超过${NICKNAME_MAX}个字`, 'warning');
                 return;
             }
-
-            // 检查留言长度
             if (content.length > CONTENT_MAX) {
                 showToast(`留言内容不能超过${CONTENT_MAX}字`, 'warning');
                 return;
             }
 
-            // 检查是否为管理员
             const adminLoggedIn = await checkIfAdmin();
-
-            // 如果是管理员，强制使用"管理员"昵称
             if (adminLoggedIn) {
                 nickname = '管理员';
-            } else {
-                // 普通用户检查是否使用了禁止的昵称
-                if (isForbiddenNickname(nickname)) {
-                    showToast('该昵称包含受限关键词，请使用其他昵称', 'error');
-                    return;
-                }
+            } else if (isForbiddenNickname(nickname)) {
+                showToast('该昵称包含受限关键词', 'error');
+                return;
             }
 
-            const submitBtn = e.target.querySelector('button[type="submit"]');
-            const originalText = submitBtn.innerHTML;
             submitBtn.disabled = true;
             submitBtn.innerHTML = `
                 <svg class="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
@@ -659,12 +549,6 @@
                 );
 
                 if (result.success) {
-                    // 如果是私密留言，保存配置
-                    if (isPrivate && result.data) {
-                        privateMessageIds.push(result.data);
-                        await savePrivateConfig();
-                    }
-
                     showToast('留言发布成功！');
                     document.getElementById('nickname').value = '';
                     document.getElementById('content').value = '';
@@ -672,10 +556,9 @@
                     document.getElementById('char-count').textContent = '0';
                     await loadMessages();
                 } else {
-                    showToast('发布失败: ' + result.message, 'error');
+                    showToast('发布失败: ' + (result.message || '未知错误'), 'error');
                 }
             } catch (error) {
-                console.error('发布留言失败:', error);
                 showToast('发布失败，请稍后重试', 'error');
             } finally {
                 submitBtn.disabled = false;
@@ -683,26 +566,33 @@
             }
         });
 
-        // 初始化时自动登录匿名用户，然后加载留言
-        async function init() {
+        // ========== 主初始化 ==========
+        async function mainInit() {
             try {
-                // 先尝试匿名登录（不等待失败）
-                fetchWithTimeout(
-                    client.auth.login({
-                        user_name: 'guest',
-                        password: 'guest123'
-                    })
-                ).catch(() => {});
-            } catch (e) {
-                // 忽略登录错误
-            }
+                console.log('开始初始化...');
+                await initClient();
 
-            // 并行加载配置、公告、留言
-            await Promise.all([
-                loadAllConfig(),
-                loadAnnouncement(),
-                loadMessages()
-            ]);
+                // 尝试匿名登录（不等待结果）
+                fetchWithTimeout(
+                    client.auth.login({ user_name: 'guest', password: 'guest123' })
+                ).catch(() => {});
+
+                // 并行加载数据
+                await Promise.all([loadAllConfig(), loadAnnouncement(), loadMessages()]);
+                console.log('初始化完成');
+            } catch (e) {
+                console.error('初始化失败:', e);
+                document.getElementById('loading').classList.add('hidden');
+                document.getElementById('error-state').classList.remove('hidden');
+                document.getElementById('error-msg').textContent = e.message || '初始化失败';
+            }
+        }
+
+        // DOM 加载完成后启动
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', mainInit);
+        } else {
+            mainInit();
         }
     </script>
 </body>
