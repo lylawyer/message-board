@@ -303,8 +303,8 @@
     <div id="toast-container" class="fixed top-4 right-4 z-50 space-y-3"></div>
 
     <script>
-        // 注意：client 和 initClient 已在 head 中定义
-
+        // 注意：client 已在 head 中定义
+        
         // Toast 提示函数
         function showToast(message, type = 'success') {
             const container = document.getElementById('toast-container');
@@ -383,51 +383,61 @@
             document.getElementById('admin-page').classList.add('hidden');
         }
 
-        // 登录
-        document.getElementById('login-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
+        // 登录 - 使用 DOMContentLoaded 确保 DOM 加载完成
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOMContentLoaded - binding login form event');
             
-            // 检查 client 是否已初始化，如果没有则初始化
-            if (!client) {
-                console.log('Client not initialized, creating now...');
-                client = aipexbase.createClient({
-                    baseUrl: 'https://baas.kuafuai.net/baas-api',
-                    apiKey: 'baas_zRu6UoOb'
+            const loginForm = document.getElementById('login-form');
+            if (loginForm) {
+                loginForm.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    console.log('Login form submitted');
+                    
+                    // 检查 client 是否已初始化，如果没有则初始化
+                    if (!client) {
+                        console.log('Client not initialized, creating now...');
+                        client = aipexbase.createClient({
+                            baseUrl: 'https://baas.kuafuai.net/baas-api',
+                            apiKey: 'baas_zRu6UoOb'
+                        });
+                    }
+                    
+                    const username = document.getElementById('username').value.trim();
+                    const password = document.getElementById('password').value;
+                    
+                    if (!username || !password) {
+                        showToast('请输入用户名和密码', 'warning');
+                        return;
+                    }
+                    
+                    const submitBtn = e.target.querySelector('button[type="submit"]');
+                    const originalText = submitBtn.innerHTML;
+                    submitBtn.disabled = true;
+                    submitBtn.innerHTML = '登录中...';
+                    
+                    try {
+                        const result = await client.auth.login({
+                            user_name: username,
+                            password: password
+                        });
+                        
+                        if (result.success) {
+                            showToast('登录成功！', 'success');
+                            showAdminPage();
+                            loadAdminMessages();
+                        } else {
+                            showToast('登录失败: ' + result.message, 'error');
+                        }
+                    } catch (error) {
+                        console.error('登录失败:', error);
+                        showToast('登录失败，请检查用户名和密码', 'error');
+                    } finally {
+                        submitBtn.disabled = false;
+                        submitBtn.innerHTML = originalText;
+                    }
                 });
-            }
-            
-            const username = document.getElementById('username').value.trim();
-            const password = document.getElementById('password').value;
-            
-            if (!username || !password) {
-                showToast('请输入用户名和密码', 'warning');
-                return;
-            }
-            
-            const submitBtn = e.target.querySelector('button[type="submit"]');
-            const originalText = submitBtn.innerHTML;
-            submitBtn.disabled = true;
-            submitBtn.innerHTML = '登录中...';
-            
-            try {
-                const result = await client.auth.login({
-                    user_name: username,
-                    password: password
-                });
-                
-                if (result.success) {
-                    showToast('登录成功！', 'success');
-                    showAdminPage();
-                    loadAdminMessages();
-                } else {
-                    showToast('登录失败: ' + result.message, 'error');
-                }
-            } catch (error) {
-                console.error('登录失败:', error);
-                showToast('登录失败，请检查用户名和密码', 'error');
-            } finally {
-                submitBtn.disabled = false;
-                submitBtn.innerHTML = originalText;
+            } else {
+                console.error('Login form not found!');
             }
         });
 
