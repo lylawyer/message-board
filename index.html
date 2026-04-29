@@ -425,12 +425,6 @@
                 
                 const result = await client.db.from('messages').list();
                 console.log('API返回结果:', result);
-                console.log('消息总数:', result.data ? result.data.length : 0);
-                if (result.data) {
-                    result.data.forEach(msg => {
-                        console.log(`  消息: id=${msg.id}, nickname=${msg.nickname}, status=${msg.status}`);
-                    });
-                }
 
                 loadingEl.classList.add('hidden');
 
@@ -618,6 +612,7 @@
                         showToast('回复成功！');
                         document.getElementById('reply-to-id').value = '';
                         document.getElementById('reply-content').value = '';
+                        allMessagesCache = null; // 清除内存缓存
                         await loadMessages();
                     } else {
                         showToast('回复失败: ' + (updateResult.message || '未知错误'), 'error');
@@ -643,6 +638,7 @@
                 if (result.success) {
                     // 清除缓存，确保下次加载最新数据
                     Cache.remove('all_messages');
+                    allMessagesCache = null; // 清除内存缓存，强制重新加载
                     
                     if (isPrivate) {
                         showToast('私密留言发布成功，管理员回复后会在下方显示');
