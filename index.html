@@ -124,13 +124,8 @@
                         <span class="ml-2 text-sm text-gray-600">悄悄话（仅自己和可见回复可见）</span>
                     </label>
                 </div>
-                <div id="private-password-section" class="hidden p-4 bg-purple-50 rounded-lg">
-                    <label class="block text-sm font-medium text-purple-700 mb-1">🔐 悄悄话密码</label>
-                    <input type="password" id="private-password" class="w-full px-4 py-2 border border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition" placeholder="设置密码（至少4位），用于解锁查看悄悄话" minlength="4" maxlength="20">
-                    <p class="text-xs text-purple-500 mt-1">💡 请牢记密码，忘记密码将无法查看悄悄话内容</p>
-                </div>
                 <div id="private-notice" class="hidden p-3 bg-blue-50 rounded-lg text-sm text-blue-700">
-                    💡 悄悄话：发布后内容会被遮罩，管理员回复后会在这里显示
+                    💡 悄悄话：发布后内容会被遮罩，输入昵称即可解锁查看
                 </div>
                 <button type="submit" id="submit-btn" class="w-full gradient-primary text-white py-3 px-6 rounded-lg font-medium hover:opacity-90 transition disabled:opacity-50 flex items-center justify-center space-x-2">
                     <span>发布留言</span>
@@ -190,9 +185,8 @@
     <div id="private-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
         <div class="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
             <h3 class="text-lg font-semibold text-gray-800 mb-4">🔓 解锁悄悄话</h3>
-            <p class="text-sm text-gray-600 mb-4">请输入你的昵称和密码，查看悄悄话内容和管理员回复：</p>
-            <input type="text" id="modal-nickname" class="w-full px-4 py-2 border border-gray-300 rounded-lg mb-3" placeholder="请输入昵称" maxlength="10">
-            <input type="password" id="modal-password" class="w-full px-4 py-2 border border-gray-300 rounded-lg mb-4" placeholder="请输入悄悄话密码" maxlength="20">
+            <p class="text-sm text-gray-600 mb-4">请输入你的昵称，查看悄悄话内容和管理员回复：</p>
+            <input type="text" id="modal-nickname" class="w-full px-4 py-2 border border-gray-300 rounded-lg mb-4" placeholder="请输入昵称" maxlength="10">
             <div class="flex space-x-3">
                 <button onclick="unlockPrivateMessages()" class="flex-1 bg-primary-500 text-white py-2 rounded-lg hover:bg-primary-600 transition">
                     查看我的悄悄话
@@ -289,6 +283,11 @@
 
         // ==================== 统一数据加载（使用 SDK）====================
         async function loadAllData() {
+            const loadingEl = document.getElementById('loading');
+            const errorEl = document.getElementById('error-state');
+            const emptyEl = document.getElementById('empty-state');
+            const errorMsg = document.getElementById('error-msg');
+
             try {
                 console.log('开始加载所有数据...');
                 
@@ -312,6 +311,7 @@
                     
                     // 渲染留言列表
                     renderMessages(cachedData);
+                    loadingEl.classList.add('hidden');
                     return;
                 }
                 
@@ -322,6 +322,9 @@
                 }
                 
                 const result = await client.db.from('messages').list();
+                
+                // 无论成功失败，先隐藏加载动画
+                loadingEl.classList.add('hidden');
                 
                 if (result.success && result.data) {
                     // 保存到缓存
@@ -346,11 +349,14 @@
                     console.log('✅ 数据加载完成（已缓存）');
                 } else {
                     console.error('数据加载失败:', result.message);
-                    showError(result.message || '加载失败');
+                    errorEl.classList.remove('hidden');
+                    errorMsg.textContent = result.message || '加载失败';
                 }
             } catch (error) {
                 console.error('数据加载失败:', error);
-                showError(error.message || '网络错误');
+                loadingEl.classList.add('hidden');
+                errorEl.classList.remove('hidden');
+                errorMsg.textContent = error.message || '网络错误';
             }
         }
 
@@ -472,9 +478,8 @@
                 return new Date(b.created_at) - new Date(a.created_at);
             });
 
-            // 获取当前用户昵称和密码哈希（用于解锁悄悄话）
+            // 获取当前用户昵称（用于解锁悄悄话）
             const currentNickname = localStorage.getItem('visitor_nickname') || '';
-            const currentPasswordHash = localStorage.getItem('visitor_password_hash') || '';
 
             listEl.innerHTML = visibleMsgs.map(msg => {
                 const isPinned = pinnedMessageIds.includes(msg.id);
@@ -482,8 +487,8 @@
                 const isPrivate = msg.status === 'private';
                 const hasReply = msg.reply && msg.reply.trim();
                 
-                // 检查是否解锁了这条悄悄话（昵称和密码哈希都匹配）
-                const isUnlocked = isPrivate && msg.nickname === currentNickname && msg.password_hash === currentPasswordHash;
+                // 检查是否解锁了这条悄悄话（昵称匹配）
+                const isUnlocked = isPrivate && msg.nickname === currentNickname;
                 
                 // 悄悄话占位HTML
                 const privatePlaceholder = `
@@ -625,16 +630,6 @@
                     created_at: new Date().toISOString()
                 };
                 
-                // 如果是悄悄话，计算并保存密码哈希
-                if (isPrivate) {
-                    const password = document.getElementById('private-password').value;
-                    if (!password || password.length < 4) {
-                        showToast('悄悄话需要设置至少4位密码', 'warning');
-                        return;
-                    }
-                    submitData.password_hash = await sha256(password);
-                }
-                
                 const result = await client.db.from('messages').insert().values(submitData);
                 
                 console.log('提交结果:', result);
@@ -651,10 +646,8 @@
                     document.getElementById('nickname').value = '';
                     document.getElementById('content').value = '';
                     document.getElementById('is-private').checked = false;
-                    document.getElementById('private-password').value = '';
                     document.getElementById('char-count').textContent = '0';
                     document.getElementById('private-notice').classList.add('hidden');
-                    document.getElementById('private-password-section').classList.add('hidden');
                     await loadMessages();
                 } else {
                     showToast('发布失败: ' + (result.message || '未知错误'), 'error');
@@ -708,25 +701,15 @@
             document.getElementById('private-modal').classList.add('hidden');
         }
 
-        async function unlockPrivateMessages() {
+        function unlockPrivateMessages() {
             const nickname = document.getElementById('modal-nickname').value.trim();
-            const password = document.getElementById('modal-password').value;
-            
             if (!nickname) {
                 showToast('请输入昵称', 'warning');
                 return;
             }
-            if (!password || password.length < 4) {
-                showToast('请输入至少4位密码', 'warning');
-                return;
-            }
             
-            // 计算密码哈希
-            const passwordHash = await sha256(password);
-            
-            // 保存到 localStorage（包含密码哈希）
+            // 保存到 localStorage
             localStorage.setItem('visitor_nickname', nickname);
-            localStorage.setItem('visitor_password_hash', passwordHash);
             
             closePrivateModal();
             showToast(`已解锁 ${nickname} 的悄悄话`);
@@ -751,9 +734,7 @@
 
         // 悄悄话提示
         document.getElementById('is-private').addEventListener('change', (e) => {
-            const isChecked = e.target.checked;
-            document.getElementById('private-notice').classList.toggle('hidden', !isChecked);
-            document.getElementById('private-password-section').classList.toggle('hidden', !isChecked);
+            document.getElementById('private-notice').classList.toggle('hidden', !e.target.checked);
         });
 
         // 回车提交
