@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>在野留言板</title>
+    <title>在线留言板</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/aipexbase-js/dist/aipexbase.umd.min.js"></script>
     <script src="js/utils.js"></script>
@@ -63,7 +63,7 @@
         <div class="container mx-auto px-4">
             <div class="flex items-center justify-between">
                 <div>
-                    <h1 class="text-2xl font-bold">在野留言板</h1>
+                    <h1 class="text-2xl font-bold">在线留言板</h1>
                     <p class="text-white/80 text-sm mt-1">记录生活，分享感悟</p>
                 </div>
                 <div class="flex items-center space-x-3">
@@ -125,7 +125,7 @@
                     </label>
                 </div>
                 <div id="private-notice" class="hidden p-3 bg-blue-50 rounded-lg text-sm text-blue-700">
-                    💡 悄悄话：发布后内容会被遮罩，输入昵称即可解锁查看
+                    💡 私密留言：内容仅管理员可见，管理员回复后会在下方显示
                 </div>
                 <button type="submit" id="submit-btn" class="w-full gradient-primary text-white py-3 px-6 rounded-lg font-medium hover:opacity-90 transition disabled:opacity-50 flex items-center justify-center space-x-2">
                     <span>发布留言</span>
@@ -177,7 +177,7 @@
     <!-- Footer -->
     <footer class="bg-gray-800 text-gray-400 py-6 mt-12">
         <div class="container mx-auto px-4 text-center text-sm">
-            <p>在野留言板 · 记录每一刻</p>
+            <p>在线留言板 · 记录每一刻</p>
         </div>
     </footer>
 
@@ -490,15 +490,15 @@
                 // 检查是否解锁了这条悄悄话（昵称匹配）
                 const isUnlocked = isPrivate && msg.nickname === currentNickname;
                 
-                // 悄悄话占位HTML
+                // 悄悄话占位HTML（内容始终隐藏，回复可见）
                 const privatePlaceholder = `
                     <div class="bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-4 border border-purple-100">
                         <div class="flex items-center space-x-2 text-purple-600 mb-2">
                             <span>🤫</span>
-                            <span class="font-medium">悄悄话</span>
+                            <span class="font-medium">私密留言</span>
                         </div>
                         <p class="text-gray-500 italic text-sm">
-                            ${isUnlocked ? escapeHtml(msg.content) : '内容已隐藏，输入昵称解锁查看'}
+                            留言内容已隐藏，仅管理员可见
                         </p>
                         ${hasReply ? `
                         <div class="mt-3 pt-3 border-t border-purple-200">
@@ -639,7 +639,7 @@
                     Cache.remove('all_messages');
                     
                     if (isPrivate) {
-                        showToast('悄悄话发布成功，管理员回复后会在这里显示');
+                        showToast('私密留言发布成功，管理员回复后会在下方显示');
                     } else {
                         showToast('留言发布成功！');
                     }
