@@ -387,12 +387,13 @@
         document.getElementById('login-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             
-            // 检查 client 是否已初始化
+            // 检查 client 是否已初始化，如果没有则初始化
             if (!client) {
-                console.log('Client not initialized, initializing now...');
-                initClient();
-                // 等待初始化完成
-                await new Promise(resolve => setTimeout(resolve, 200));
+                console.log('Client not initialized, creating now...');
+                client = aipexbase.createClient({
+                    baseUrl: 'https://baas.kuafuai.net/baas-api',
+                    apiKey: 'baas_zRu6UoOb'
+                });
             }
             
             const username = document.getElementById('username').value.trim();
