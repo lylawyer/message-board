@@ -273,13 +273,29 @@
     <div id="toast-container" class="fixed top-4 right-4 z-50 space-y-3"></div>
 
     <script>
-        // 初始化客户端
-        const client = aipexbase.createClient({
-            baseUrl: 'https://baas.kuafuai.net/baas-api',
-            apiKey: 'baas_zRu6UoOb'
-        });
-
+        // 全局变量
+        let client = null;
         let currentMessageId = null;
+        
+        // 初始化客户端（确保 SDK 加载完成）
+        function initClient() {
+            if (typeof aipexbase !== 'undefined') {
+                client = aipexbase.createClient({
+                    baseUrl: 'https://baas.kuafuai.net/baas-api',
+                    apiKey: 'baas_zRu6UoOb'
+                });
+                console.log('Client initialized successfully');
+                // 初始化完成后检查登录状态
+                checkAuth();
+            } else {
+                console.error('aipexbase SDK not loaded');
+                // 重试
+                setTimeout(initClient, 100);
+            }
+        }
+        
+        // 页面加载完成后初始化
+        window.addEventListener('load', initClient);
 
         // Toast 提示函数
         function showToast(message, type = 'success') {
@@ -769,8 +785,7 @@
             }
         }
 
-        // 页面加载时检查登录状态
-        checkAuth();
+        // 注意：checkAuth() 已在 initClient() 中调用
     </script>
 </body>
 </html>
