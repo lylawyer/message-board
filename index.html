@@ -425,6 +425,12 @@
                 
                 const result = await client.db.from('messages').list();
                 console.log('API返回结果:', result);
+                console.log('消息总数:', result.data ? result.data.length : 0);
+                if (result.data) {
+                    result.data.forEach(msg => {
+                        console.log(`  消息: id=${msg.id}, nickname=${msg.nickname}, status=${msg.status}`);
+                    });
+                }
 
                 loadingEl.classList.add('hidden');
 
