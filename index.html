@@ -6,6 +6,7 @@
     <title>在野留言板</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@aipexbase/baas-sdk@latest" defer></script>
+    <script src="js/utils.js"></script>
     <script>
         tailwind.config = {
             theme: {
@@ -28,6 +29,29 @@
         .animate-pulse-custom { animation: pulse 2s ease-in-out infinite; }
         .blur-content { filter: blur(5px); user-select: none; }
         .toast { animation: fadeIn 0.3s ease-out; }
+        
+        /* 暗色模式样式 */
+        .dark body { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); color: #e2e8f0; }
+        .dark .gradient-subtle { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); }
+        .dark .bg-white { background: #1e293b; color: #e2e8f0; }
+        .dark .text-gray-800 { color: #e2e8f0; }
+        .dark .text-gray-700 { color: #cbd5e1; }
+        .dark .text-gray-600 { color: #94a3b8; }
+        .dark .text-gray-500 { color: #64748b; }
+        .dark .text-gray-400 { color: #475569; }
+        .dark .text-gray-900 { color: #f1f5f9; }
+        .dark .border-gray-300 { border-color: #334155; }
+        .dark .border-gray-100 { border-color: #1e293b; }
+        .dark .bg-gray-50 { background: #0f172a; }
+        .dark .bg-gray-800 { background: #0f172a; }
+        .dark .bg-blue-50 { background: #1e3a5f; }
+        .dark .bg-purple-50 { background: #2d1b4e; }
+        .dark .bg-yellow-50 { background: #3d2e00; }
+        .dark .bg-green-50 { background: #1a3d2e; }
+        .dark .bg-red-50 { background: #3d1a1a; }
+        .dark .shadow-lg { box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3); }
+        .dark .shadow-md { box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3); }
+        .dark .ring-2 { ring-color: #475569; }
     </style>
 </head>
 <body class="gradient-subtle min-h-screen">
@@ -43,6 +67,9 @@
                     <p class="text-white/80 text-sm mt-1">记录生活，分享感悟</p>
                 </div>
                 <div class="flex items-center space-x-3">
+                    <button id="dark-mode-toggle" class="text-sm text-white/80 hover:text-white transition px-2 py-1 rounded" title="切换暗色模式">
+                        🌓
+                    </button>
                     <button id="admin-login-btn" class="text-sm text-white/80 hover:text-white transition">
                         <span id="admin-status-text">管理员入口</span>
                     </button>
@@ -97,6 +124,11 @@
                         <span class="ml-2 text-sm text-gray-600">悄悄话（仅自己和可见回复可见）</span>
                     </label>
                 </div>
+                <div id="private-password-section" class="hidden p-4 bg-purple-50 rounded-lg">
+                    <label class="block text-sm font-medium text-purple-700 mb-1">🔐 悄悄话密码</label>
+                    <input type="password" id="private-password" class="w-full px-4 py-2 border border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition" placeholder="设置密码（至少4位），用于解锁查看悄悄话" minlength="4" maxlength="20">
+                    <p class="text-xs text-purple-500 mt-1">💡 请牢记密码，忘记密码将无法查看悄悄话内容</p>
+                </div>
                 <div id="private-notice" class="hidden p-3 bg-blue-50 rounded-lg text-sm text-blue-700">
                     💡 悄悄话：发布后内容会被遮罩，管理员回复后会在这里显示
                 </div>
@@ -110,6 +142,15 @@
         <div class="space-y-4">
             <div class="flex items-center justify-between">
                 <h2 class="text-lg font-semibold text-gray-800">留言 (<span id="message-count">0</span>)</h2>
+                <div class="flex items-center space-x-2">
+                    <input type="text" id="search-input" class="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition" placeholder="搜索留言..." maxlength="50">
+                    <button id="search-btn" class="px-3 py-1.5 bg-primary-500 text-white rounded-lg text-sm hover:bg-primary-600 transition">
+                        🔍
+                    </button>
+                    <button id="clear-search-btn" class="hidden px-3 py-1.5 bg-gray-200 text-gray-600 rounded-lg text-sm hover:bg-gray-300 transition">
+                        ✕
+                    </button>
+                </div>
             </div>
 
             <!-- Loading State -->
@@ -149,8 +190,9 @@
     <div id="private-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
         <div class="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
             <h3 class="text-lg font-semibold text-gray-800 mb-4">🔓 解锁悄悄话</h3>
-            <p class="text-sm text-gray-600 mb-4">请输入你的昵称，查看悄悄话内容和管理员回复：</p>
-            <input type="text" id="modal-nickname" class="w-full px-4 py-2 border border-gray-300 rounded-lg mb-4" placeholder="请输入昵称" maxlength="10">
+            <p class="text-sm text-gray-600 mb-4">请输入你的昵称和密码，查看悄悄话内容和管理员回复：</p>
+            <input type="text" id="modal-nickname" class="w-full px-4 py-2 border border-gray-300 rounded-lg mb-3" placeholder="请输入昵称" maxlength="10">
+            <input type="password" id="modal-password" class="w-full px-4 py-2 border border-gray-300 rounded-lg mb-4" placeholder="请输入悄悄话密码" maxlength="20">
             <div class="flex space-x-3">
                 <button onclick="unlockPrivateMessages()" class="flex-1 bg-primary-500 text-white py-2 rounded-lg hover:bg-primary-600 transition">
                     查看我的悄悄话
@@ -167,14 +209,59 @@
         const CONFIG = {
             BAAS_API_URL: 'https://baas.kuafuai.net/baas-api',
             API_KEY: 'baas_zRu6UoOb',
-            ADMIN_KEY: 'admin_secret_key_2024',
+            // 管理员密钥哈希值（SHA-256），原始密钥通过 prompt 输入后验证
+            ADMIN_KEY_HASH: '77323b369c27f8af06ef01ae9c46d234852a266ccddd2ad1dc63f2e064ce7ac3', // 强密钥
             NICKNAME_MAX: 10,
             CONTENT_MAX: 1000,
             REQUEST_TIMEOUT: 10000,
-            FORBIDDEN_NICKNAMES: ['管理员', '系统', 'admin', '系统通知', '官方', '系统公告']
+            FORBIDDEN_NICKNAMES: ['管理员', '系统', 'admin', '系统通知', '官方', '系统公告'],
+            MAX_LOGIN_ATTEMPTS: 3,
+            LOCKOUT_DURATION: 5 * 60 * 1000 // 5分钟锁定
         };
 
         let pinnedMessageIds = [];
+        let allMessagesCache = null; // 缓存所有消息数据
+        let searchQuery = ''; // 当前搜索关键词
+
+        // ==================== 搜索功能 ====================
+        function filterMessagesBySearch(messages) {
+            if (!searchQuery) return messages;
+            const query = searchQuery.toLowerCase();
+            return messages.filter(msg => 
+                msg.nickname.toLowerCase().includes(query) || 
+                msg.content.toLowerCase().includes(query) ||
+                (msg.reply && msg.reply.toLowerCase().includes(query))
+            );
+        }
+
+        document.getElementById('search-input').addEventListener('input', (e) => {
+            searchQuery = e.target.value.trim();
+            const clearBtn = document.getElementById('clear-search-btn');
+            clearBtn.classList.toggle('hidden', !searchQuery);
+            
+            // 实时搜索
+            if (allMessagesCache) {
+                const filtered = filterMessagesBySearch(allMessagesCache);
+                renderMessages(filtered);
+            }
+        });
+
+        document.getElementById('search-btn').addEventListener('click', () => {
+            searchQuery = document.getElementById('search-input').value.trim();
+            if (allMessagesCache) {
+                const filtered = filterMessagesBySearch(allMessagesCache);
+                renderMessages(filtered);
+            }
+        });
+
+        document.getElementById('clear-search-btn').addEventListener('click', () => {
+            document.getElementById('search-input').value = '';
+            searchQuery = '';
+            document.getElementById('clear-search-btn').classList.add('hidden');
+            if (allMessagesCache) {
+                renderMessages(allMessagesCache);
+            }
+        });
 
         // ==================== 初始化 ====================
         window.addEventListener('DOMContentLoaded', async () => {
@@ -187,13 +274,86 @@
                 console.warn('SDK初始化失败，将使用直接API调用:', e);
             }
             
-            // 加载配置（使用直接API）
-            await Promise.all([
-                loadAllConfig(),
-                loadAnnouncement(),
-                loadMessages()
-            ]);
+            // 统一加载所有数据（只调用一次API）
+            await loadAllData();
         });
+
+        // ==================== 统一数据加载（合并重复API调用）====================
+        async function loadAllData() {
+            try {
+                console.log('开始加载所有数据...');
+                
+                // 先尝试从缓存加载
+                const cachedData = Cache.get('all_messages');
+                if (cachedData) {
+                    console.log('✅ 使用缓存数据');
+                    allMessagesCache = cachedData;
+                    
+                    // 解析置顶消息ID
+                    const configMsgs = cachedData.filter(m => 
+                        m.nickname === '系统' && m.status === 'hidden'
+                    );
+                    const pinnedMsgs = configMsgs.filter(m => 
+                        m.content && m.content.startsWith('[PINNED]')
+                    );
+                    pinnedMessageIds = pinnedMsgs.map(m => m.id);
+                    
+                    // 加载公告
+                    loadAnnouncementFromCache(cachedData);
+                    
+                    // 渲染留言列表
+                    renderMessages(cachedData);
+                    return;
+                }
+                
+                // 缓存未命中，调用API
+                const response = await fetch(`${CONFIG.BAAS_API_URL}?key=${CONFIG.API_KEY}&table=messages&action=list`, {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                const result = await response.json();
+                
+                if (result.success && result.data) {
+                    // 保存到缓存
+                    Cache.set('all_messages', result.data);
+                    allMessagesCache = result.data;
+                    
+                    // 解析置顶消息ID
+                    const configMsgs = result.data.filter(m => 
+                        m.nickname === '系统' && m.status === 'hidden'
+                    );
+                    const pinnedMsgs = configMsgs.filter(m => 
+                        m.content && m.content.startsWith('[PINNED]')
+                    );
+                    pinnedMessageIds = pinnedMsgs.map(m => m.id);
+                    
+                    // 加载公告
+                    loadAnnouncementFromCache(result.data);
+                    
+                    // 渲染留言列表
+                    renderMessages(result.data);
+                    
+                    console.log('✅ 数据加载完成（已缓存）');
+                } else {
+                    console.error('数据加载失败:', result.message);
+                    showError(result.message || '加载失败');
+                }
+            } catch (error) {
+                console.error('数据加载失败:', error);
+                showError(error.message || '网络错误');
+            }
+        }
+
+        function showError(message) {
+            const loadingEl = document.getElementById('loading');
+            const errorEl = document.getElementById('error-state');
+            const errorMsg = document.getElementById('error-msg');
+            
+            loadingEl.classList.add('hidden');
+            errorEl.classList.remove('hidden');
+            errorMsg.textContent = message;
+        }
 
         async function initSDK() {
             return new Promise((resolve, reject) => {
@@ -223,48 +383,22 @@
             ]);
         }
 
-        // ==================== 配置加载（直接API）====================
-        async function loadAllConfig() {
-            try {
-                // 获取所有数据后在前端过滤
-                const response = await fetch(`${CONFIG.BAAS_API_URL}?key=${CONFIG.API_KEY}&table=messages&action=list`);
-                const result = await response.json();
-                
-                if (result.success && result.data) {
-                    // 解析置顶消息（nickname=系统 且 content以[PINNED]开头）
-                    const configMsgs = result.data.filter(m => 
-                        m.nickname === '系统' && m.status === 'hidden'
-                    );
-                    const pinnedMsgs = configMsgs.filter(m => 
-                        m.content && m.content.startsWith('[PINNED]')
-                    );
-                    pinnedMessageIds = pinnedMsgs.map(m => m.id);
-                    console.log('配置加载完成，置顶消息ID:', pinnedMessageIds);
-                }
-            } catch (e) {
-                console.error('加载配置失败:', e);
-            }
+        // loadAllConfig 函数已合并到 loadAllData 中
         }
 
-        async function loadAnnouncement() {
+        async function loadAnnouncementFromCache(data) {
             try {
-                // 获取所有数据后在前端过滤
-                const response = await fetch(`${CONFIG.BAAS_API_URL}?key=${CONFIG.API_KEY}&table=messages&action=list`);
-                const result = await response.json();
-                
-                if (result.success && result.data) {
-                    // 查找公告（nickname=系统 且 content以[ANNOUNCEMENT]开头）
-                    const announcementMsg = result.data.find(m => 
-                        m.nickname === '系统' && 
-                        m.status === 'hidden' && 
-                        m.content && m.content.startsWith('[ANNOUNCEMENT]')
-                    );
-                    if (announcementMsg) {
-                        const content = announcementMsg.content.replace('[ANNOUNCEMENT] ', '');
-                        if (content && content !== '暂无公告') {
-                            document.getElementById('announcement-content').textContent = content;
-                            document.getElementById('announcement-section').classList.remove('hidden');
-                        }
+                // 查找公告（nickname=系统 且 content以[ANNOUNCEMENT]开头）
+                const announcementMsg = data.find(m => 
+                    m.nickname === '系统' && 
+                    m.status === 'hidden' && 
+                    m.content && m.content.startsWith('[ANNOUNCEMENT]')
+                );
+                if (announcementMsg) {
+                    const content = announcementMsg.content.replace('[ANNOUNCEMENT] ', '');
+                    if (content && content !== '暂无公告') {
+                        document.getElementById('announcement-content').textContent = content;
+                        document.getElementById('announcement-section').classList.remove('hidden');
                     }
                 }
             } catch (e) {
@@ -288,7 +422,14 @@
             try {
                 console.log('开始加载留言...');
                 
-                // 直接使用 fetch 调用 API（绕过 SDK）
+                // 如果有缓存，直接使用缓存
+                if (allMessagesCache) {
+                    renderMessages(allMessagesCache);
+                    loadingEl.classList.add('hidden');
+                    return;
+                }
+                
+                // 否则重新调用API
                 const response = await fetch(`${CONFIG.BAAS_API_URL}?key=${CONFIG.API_KEY}&table=messages&action=list`, {
                     method: 'GET',
                     headers: { 'Content-Type': 'application/json' }
@@ -300,9 +441,8 @@
                 loadingEl.classList.add('hidden');
 
                 if (result.success) {
-                    const allMsgs = result.data || [];
-                    console.log('获取到留言数:', allMsgs.length);
-                    renderMessages(allMsgs);
+                    allMessagesCache = result.data || [];
+                    renderMessages(allMessagesCache);
                 } else {
                     errorEl.classList.remove('hidden');
                     errorMsg.textContent = result.message || '加载失败';
@@ -350,8 +490,9 @@
                 return new Date(b.created_at) - new Date(a.created_at);
             });
 
-            // 获取当前用户昵称（用于解锁悄悄话）
+            // 获取当前用户昵称和密码哈希（用于解锁悄悄话）
             const currentNickname = localStorage.getItem('visitor_nickname') || '';
+            const currentPasswordHash = localStorage.getItem('visitor_password_hash') || '';
 
             listEl.innerHTML = visibleMsgs.map(msg => {
                 const isPinned = pinnedMessageIds.includes(msg.id);
@@ -359,8 +500,8 @@
                 const isPrivate = msg.status === 'private';
                 const hasReply = msg.reply && msg.reply.trim();
                 
-                // 检查是否解锁了这条悄悄话
-                const isUnlocked = isPrivate && msg.nickname === currentNickname;
+                // 检查是否解锁了这条悄悄话（昵称和密码哈希都匹配）
+                const isUnlocked = isPrivate && msg.nickname === currentNickname && msg.password_hash === currentPasswordHash;
                 
                 // 悄悄话占位HTML
                 const privatePlaceholder = `
@@ -495,6 +636,25 @@
 
                 // 普通留言/悄悄话 - 使用直接 fetch
                 console.log('提交留言:', { nickname, content, status: isPrivate ? 'private' : 'visible' });
+                
+                // 准备提交数据
+                const submitData = {
+                    nickname: nickname,
+                    content: content,
+                    status: isPrivate ? 'private' : 'visible',
+                    created_at: new Date().toISOString()
+                };
+                
+                // 如果是悄悄话，计算并保存密码哈希
+                if (isPrivate) {
+                    const password = document.getElementById('private-password').value;
+                    if (!password || password.length < 4) {
+                        showToast('悄悄话需要设置至少4位密码', 'warning');
+                        return;
+                    }
+                    submitData.password_hash = await sha256(password);
+                }
+                
                 const result = await fetch(`${CONFIG.BAAS_API_URL}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -502,18 +662,16 @@
                         key: CONFIG.API_KEY,
                         table: 'messages',
                         action: 'insert',
-                        data: {
-                            nickname: nickname,
-                            content: content,
-                            status: isPrivate ? 'private' : 'visible',
-                            created_at: new Date().toISOString()
-                        }
+                        data: submitData
                     })
                 }).then(r => r.json());
                 
                 console.log('提交结果:', result);
 
                 if (result.success) {
+                    // 清除缓存，确保下次加载最新数据
+                    Cache.remove('all_messages');
+                    
                     if (isPrivate) {
                         showToast('悄悄话发布成功，管理员回复后会在这里显示');
                     } else {
@@ -522,7 +680,10 @@
                     document.getElementById('nickname').value = '';
                     document.getElementById('content').value = '';
                     document.getElementById('is-private').checked = false;
+                    document.getElementById('private-password').value = '';
                     document.getElementById('char-count').textContent = '0';
+                    document.getElementById('private-notice').classList.add('hidden');
+                    document.getElementById('private-password-section').classList.add('hidden');
                     await loadMessages();
                 } else {
                     showToast('发布失败: ' + (result.message || '未知错误'), 'error');
@@ -538,13 +699,31 @@
 
         // 管理员登录
         document.getElementById('admin-login-btn').addEventListener('click', async () => {
+            // 检查是否被锁定
+            const lockTime = getRemainingLockTime();
+            if (lockTime > 0) {
+                showToast(`登录失败次数过多，请 ${Math.ceil(lockTime/60)} 分钟后再试`, 'error');
+                return;
+            }
+
             const password = prompt('请输入管理员密钥：');
-            if (password === CONFIG.ADMIN_KEY) {
+            if (!password) return;
+
+            const hash = await sha256(password);
+            if (hash === CONFIG.ADMIN_KEY_HASH) {
                 sessionStorage.setItem('is_admin', 'true');
+                recordLoginAttempt(true);
                 updateAdminUI(true);
                 showToast('管理员登录成功');
-            } else if (password) {
-                showToast('密钥错误', 'error');
+            } else {
+                recordLoginAttempt(false);
+                const attempts = getLoginAttempts();
+                const remaining = CONFIG.MAX_LOGIN_ATTEMPTS - attempts.count;
+                if (attempts.isLocked) {
+                    showToast(`登录失败次数过多，请 ${Math.ceil(getRemainingLockTime()/60)} 分钟后再试`, 'error');
+                } else {
+                    showToast(`密钥错误，还剩 ${remaining} 次机会`, 'error');
+                }
             }
         });
 
@@ -583,15 +762,25 @@
             document.getElementById('private-modal').classList.add('hidden');
         }
 
-        function unlockPrivateMessages() {
+        async function unlockPrivateMessages() {
             const nickname = document.getElementById('modal-nickname').value.trim();
+            const password = document.getElementById('modal-password').value;
+            
             if (!nickname) {
                 showToast('请输入昵称', 'warning');
                 return;
             }
+            if (!password || password.length < 4) {
+                showToast('请输入至少4位密码', 'warning');
+                return;
+            }
             
-            // 保存到 localStorage
+            // 计算密码哈希
+            const passwordHash = await sha256(password);
+            
+            // 保存到 localStorage（包含密码哈希）
             localStorage.setItem('visitor_nickname', nickname);
+            localStorage.setItem('visitor_password_hash', passwordHash);
             
             closePrivateModal();
             showToast(`已解锁 ${nickname} 的悄悄话`);
@@ -608,57 +797,56 @@
         });
 
         // ==================== 工具函数 ====================
-        function escapeHtml(text) {
-            if (!text) return '';
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
+        // SHA-256 哈希函数
+        async function sha256(text) {
+            const encoder = new TextEncoder();
+            const data = encoder.encode(text);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
         }
 
-        function formatDateTime(dateStr) {
-            if (!dateStr) return '';
-            const date = new Date(dateStr);
-            const now = new Date();
-            const diff = now - date;
-            
-            if (diff < 60000) return '刚刚';
-            if (diff < 3600000) return Math.floor(diff / 60000) + '分钟前';
-            if (diff < 86400000) return Math.floor(diff / 3600000) + '小时前';
-            if (diff < 604800000) return Math.floor(diff / 86400000) + '天前';
-            
-            return date.toLocaleDateString('zh-CN', { year: 'numeric', month: 'short', day: 'numeric' });
+        // 检查管理员登录状态（带失败次数限制）
+        function getLoginAttempts() {
+            const data = JSON.parse(localStorage.getItem('admin_login_attempts') || '{"count":0,"lockedUntil":0}');
+            if (data.lockedUntil > Date.now()) {
+                return { ...data, isLocked: true };
+            }
+            return { ...data, isLocked: false };
         }
 
-        function showToast(message, type = 'success') {
-            const container = document.getElementById('toast-container');
-            const toast = document.createElement('div');
-            
-            const colors = {
-                success: 'bg-green-500',
-                error: 'bg-red-500',
-                warning: 'bg-yellow-500',
-                info: 'bg-blue-500'
-            };
-            
-            toast.className = `toast ${colors[type]} text-white px-6 py-3 rounded-lg shadow-lg max-w-xs`;
-            toast.textContent = message;
-            container.appendChild(toast);
-            
-            setTimeout(() => {
-                toast.style.opacity = '0';
-                toast.style.transition = 'opacity 0.3s';
-                setTimeout(() => toast.remove(), 300);
-            }, 3000);
+        function recordLoginAttempt(success) {
+            const data = getLoginAttempts();
+            if (success) {
+                localStorage.removeItem('admin_login_attempts');
+            } else {
+                data.count = (data.count || 0) + 1;
+                if (data.count >= CONFIG.MAX_LOGIN_ATTEMPTS) {
+                    data.lockedUntil = Date.now() + CONFIG.LOCKOUT_DURATION;
+                    data.count = 0;
+                }
+                localStorage.setItem('admin_login_attempts', JSON.stringify(data));
+            }
         }
 
-        // 字符计数
-        document.getElementById('content').addEventListener('input', (e) => {
-            document.getElementById('char-count').textContent = e.target.value.length;
-        });
+        function getRemainingLockTime() {
+            const data = getLoginAttempts();
+            if (data.isLocked) {
+                return Math.ceil((data.lockedUntil - Date.now()) / 1000);
+            }
+            return 0;
+        }
+
+        // escapeHtml 函数已移至 js/utils.js);
+        }
+
+        // showToast 函数已移至 js/utils.js);
 
         // 悄悄话提示
         document.getElementById('is-private').addEventListener('change', (e) => {
-            document.getElementById('private-notice').classList.toggle('hidden', !e.target.checked);
+            const isChecked = e.target.checked;
+            document.getElementById('private-notice').classList.toggle('hidden', !isChecked);
+            document.getElementById('private-password-section').classList.toggle('hidden', !isChecked);
         });
 
         // 回车提交
@@ -673,7 +861,16 @@
         (async () => {
             const isAdmin = await checkIfAdmin();
             updateAdminUI(isAdmin);
+            
+            // 初始化暗色模式
+            DarkMode.init();
         })();
+
+        // 暗色模式切换
+        document.getElementById('dark-mode-toggle').addEventListener('click', () => {
+            const enabled = DarkMode.toggle();
+            showToast(enabled ? '已开启暗色模式' : '已关闭暗色模式', 'info');
+        });
     </script>
 </body>
 </html>

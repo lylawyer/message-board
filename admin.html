@@ -8,6 +8,7 @@
     <meta http-equiv="Expires" content="0">
     <title>留言板 - 管理</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="js/utils.js"></script>
     <script>
       tailwind.config = {
           theme: {
@@ -305,66 +306,10 @@
     <script>
       // 管理员页面 JavaScript 功能
 
-      // Toast 通知系统
-      function showToast(message, type = 'success') {
-          const container = document.getElementById('toast-container');
-          const toast = document.createElement('div');
-          const styles = {
-              success: 'bg-green-50 border-green-200 text-green-800',
-              error: 'bg-red-50 border-red-200 text-red-800',
-              warning: 'bg-yellow-50 border-yellow-200 text-yellow-800',
-              info: 'bg-blue-50 border-blue-200 text-blue-800'
-          };
-          const icons = {
-              success: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>',
-              error: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>',
-              warning: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>',
-              info: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>'
-          };
-          toast.className = `flex items-center px-4 py-3 rounded-xl border shadow-lg animate-slide-down ${styles[type]}`;
-          toast.innerHTML = `
-              <svg class="w-5 h-5 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">${icons[type]}</svg>
-              <span class="font-medium">${escapeHtml(message)}</span>
-          `;
-          container.appendChild(toast);
-          setTimeout(() => {
-              toast.style.opacity = '0';
-              toast.style.transform = 'translateX(100%)';
-              toast.style.transition = 'all 0.3s ease-out';
-              setTimeout(() => toast.remove(), 300);
-          }, 3000);
+      // showToast 函数已移至 js/utils.js-${month}-${day} ${hour}:${minute}`;
       }
 
-      // 格式化日期时间
-      function formatDateTime(dateStr) {
-          if (!dateStr) return '';
-          const date = new Date(dateStr);
-          const year = date.getFullYear();
-          const month = String(date.getMonth() + 1).padStart(2, '0');
-          const day = String(date.getDate()).padStart(2, '0');
-          const hour = String(date.getHours()).padStart(2, '0');
-          const minute = String(date.getMinutes()).padStart(2, '0');
-          return `${year}-${month}-${day} ${hour}:${minute}`;
-      }
-
-      // HTML转义函数 - 防止XSS
-      function escapeHtml(text) {
-          if (!text) return '';
-          const div = document.createElement('div');
-          div.textContent = text;
-          return div.innerHTML;
-      }
-
-      // 检查用户认证状态
-      async function checkAuth() {
-          try {
-              const user = await client.auth.getUser();
-              console.log('checkAuth getUser:', user);
-              if (user && user.success && user.data) {
-                  console.log('User is logged in, showing admin page');
-                  showAdminPage();
-                  loadAdminMessages();
-              } else {
+      // escapeHtml 函数已移至 js/utils.js else {
                   console.log('User not logged in or getUser failed');
               }
           } catch (error) {
@@ -574,7 +519,13 @@
                   const isPinned = pinnedMessageIds.includes(msg.id);
                   const isPrivate = privateMessageIds.includes(msg.id);
                   return `
-                  <div class="p-6 hover:bg-gray-50 transition-smooth ${msg.status === 'hidden' ? 'opacity-50' : ''} ${isPinned ? 'bg-yellow-50 border-l-4 border-yellow-400' : ''} ${isPrivate ? 'bg-blue-50' : ''}">
+                  <div class="p-6 hover:bg-gray-50 transition-smooth ${msg.status === 'hidden' ? 'opacity-50' : ''} ${isPinned ? 'bg-yellow-50 border-l-4 border-yellow-400' : ''} ${isPrivate ? 'bg-blue-50' : ''}" 
+                       data-msg-id="${escapeHtml(msg.id)}" 
+                       data-msg-nickname="${escapeHtml(msg.nickname)}"
+                       data-msg-content="${escapeHtml(msg.content)}"
+                       data-msg-status="${escapeHtml(msg.status || 'visible')}"
+                       data-is-pinned="${isPinned}"
+                       data-is-private="${isPrivate}">
                       <div class="flex items-start justify-between">
                           <div class="flex-1">
                               <div class="flex items-center space-x-3 mb-2">
@@ -608,33 +559,28 @@
                           </div>
                           <div class="flex flex-col space-y-2 ml-4">
                               <button
-                                  onclick="togglePin('${msg.id}', ${isPinned})"
-                                  class="px-3 py-1.5 rounded-lg text-sm ${isPinned ? 'text-yellow-600 hover:bg-yellow-50' : 'text-gray-600 hover:bg-gray-50'} transition-smooth"
-                              >
+                                  class="msg-action-btn px-3 py-1.5 rounded-lg text-sm ${isPinned ? 'text-yellow-600 hover:bg-yellow-50' : 'text-gray-600 hover:bg-gray-50'} transition-smooth"
+                                  data-action="toggle-pin">
                                   ${isPinned ? '取消锁定' : '锁定'}
                               </button>
                               <button
-                                  onclick="openReplyModal('${msg.id}', '${escapeHtml(msg.nickname)}', '${escapeHtml(msg.content)}')"
-                                  class="px-3 py-1.5 rounded-lg text-sm text-primary-600 hover:bg-primary-50 transition-smooth"
-                              >
+                                  class="msg-action-btn px-3 py-1.5 rounded-lg text-sm text-primary-600 hover:bg-primary-50 transition-smooth"
+                                  data-action="open-reply">
                                   ${msg.reply ? '编辑回复' : '回复'}
                               </button>
                               <button
-                                  onclick="toggleStatus('${msg.id}', '${msg.status}')"
-                                  class="px-3 py-1.5 rounded-lg text-sm ${msg.status === 'hidden' ? 'text-green-600 hover:bg-green-50' : 'text-orange-600 hover:bg-orange-50'} transition-smooth"
-                              >
+                                  class="msg-action-btn px-3 py-1.5 rounded-lg text-sm ${msg.status === 'hidden' ? 'text-green-600 hover:bg-green-50' : 'text-orange-600 hover:bg-orange-50'} transition-smooth"
+                                  data-action="toggle-status">
                                   ${msg.status === 'hidden' ? '显示' : '隐藏'}
                               </button>
                               <button
-                                  onclick="togglePrivate('${msg.id}', ${isPrivate})"
-                                  class="px-3 py-1.5 rounded-lg text-sm ${isPrivate ? 'text-blue-600 hover:bg-blue-50' : 'text-gray-600 hover:bg-gray-50'} transition-smooth"
-                              >
+                                  class="msg-action-btn px-3 py-1.5 rounded-lg text-sm ${isPrivate ? 'text-blue-600 hover:bg-blue-50' : 'text-gray-600 hover:bg-gray-50'} transition-smooth"
+                                  data-action="toggle-private">
                                   ${isPrivate ? '取消私密' : '设为私密'}
                               </button>
                               <button
-                                  onclick="deleteMessage('${msg.id}')"
-                                  class="px-3 py-1.5 rounded-lg text-sm text-red-600 hover:bg-red-50 transition-smooth"
-                              >
+                                  class="msg-action-btn px-3 py-1.5 rounded-lg text-sm text-red-600 hover:bg-red-50 transition-smooth"
+                                  data-action="delete-message">
                                   删除
                               </button>
                           </div>
@@ -642,6 +588,41 @@
                   </div>
                   `;
               }).join('');
+
+              // 使用事件委托处理消息操作按钮点击
+              document.getElementById('admin-messages-list').addEventListener('click', function(e) {
+                  const btn = e.target.closest('.msg-action-btn');
+                  if (!btn) return;
+
+                  const msgEl = btn.closest('[data-msg-id]');
+                  if (!msgEl) return;
+
+                  const msgId = msgEl.dataset.msgId;
+                  const nickname = msgEl.dataset.msgNickname;
+                  const content = msgEl.dataset.msgContent;
+                  const status = msgEl.dataset.msgStatus;
+                  const isPinned = msgEl.dataset.isPinned === 'true';
+                  const isPrivate = msgEl.dataset.isPrivate === 'true';
+                  const action = btn.dataset.action;
+
+                  switch(action) {
+                      case 'toggle-pin':
+                          togglePin(msgId, isPinned);
+                          break;
+                      case 'open-reply':
+                          openReplyModal(msgId, nickname, content);
+                          break;
+                      case 'toggle-status':
+                          toggleStatus(msgId, status);
+                          break;
+                      case 'toggle-private':
+                          togglePrivate(msgId, isPrivate);
+                          break;
+                      case 'delete-message':
+                          deleteMessage(msgId);
+                          break;
+                  }
+              });
           } catch (error) {
               console.error('loadAdminMessages error:', error);
               showToast('加载消息失败', 'error');
