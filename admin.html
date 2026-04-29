@@ -288,14 +288,26 @@
                 // 初始化完成后检查登录状态
                 checkAuth();
             } else {
-                console.error('aipexbase SDK not loaded');
+                console.error('aipexbase SDK not loaded, retrying...');
                 // 重试
                 setTimeout(initClient, 100);
             }
         }
         
-        // 页面加载完成后初始化
-        window.addEventListener('load', initClient);
+        // 多种方式确保初始化
+        // 方式1: DOMContentLoaded
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOMContentLoaded triggered');
+            initClient();
+        });
+        
+        // 方式2: window.onload 作为后备
+        window.onload = function() {
+            console.log('window.onload triggered');
+            if (!client) {
+                initClient();
+            }
+        };
 
         // Toast 提示函数
         function showToast(message, type = 'success') {
@@ -378,6 +390,14 @@
         // 登录
         document.getElementById('login-form').addEventListener('submit', async (e) => {
             e.preventDefault();
+            
+            // 检查 client 是否已初始化
+            if (!client) {
+                console.log('Client not initialized, initializing now...');
+                initClient();
+                // 等待初始化完成
+                await new Promise(resolve => setTimeout(resolve, 200));
+            }
             
             const username = document.getElementById('username').value.trim();
             const password = document.getElementById('password').value;
