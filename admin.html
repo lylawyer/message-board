@@ -102,8 +102,8 @@
                 
                 <div class="mt-6 pt-6 border-t border-gray-100">
                     <p class="text-sm text-gray-500 text-center">
-                        默认账号：<span class="font-mono text-primary-600">admin</span> / 
-                        密码：<span class="font-mono text-primary-600">admin123</span>
+                        账号：<span class="font-mono text-primary-600">admin_new</span> / 
+                        密码：<span class="font-mono text-primary-600">aiwoziji</span>
                     </p>
                 </div>
             </div>
@@ -131,12 +131,6 @@
                         <a href="index.html" class="px-4 py-2 rounded-lg text-gray-600 hover:text-primary-600 hover:bg-primary-50 transition-smooth text-sm font-medium">
                             查看留言板
                         </a>
-                        <button 
-                            id="change-password-btn"
-                            class="px-4 py-2 rounded-lg text-gray-600 hover:text-primary-600 hover:bg-primary-50 transition-smooth text-sm font-medium"
-                        >
-                            修改密码
-                        </button>
                         <button 
                             id="logout-btn"
                             class="px-4 py-2 rounded-lg text-red-600 hover:text-red-700 hover:bg-red-50 transition-smooth text-sm font-medium"
@@ -216,69 +210,6 @@
                 </div>
             </div>
         </main>
-    </div>
-
-    <!-- 修改密码弹窗 -->
-    <div id="password-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center px-4">
-        <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 animate-slide-up">
-            <div class="flex items-center justify-between mb-4">
-                <h3 class="text-lg font-semibold text-gray-900">修改密码</h3>
-                <button id="close-password-modal" class="text-gray-400 hover:text-gray-600">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                    </svg>
-                </button>
-            </div>
-            <form id="password-form" class="space-y-4">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-2">当前密码 <span class="text-red-500">*</span></label>
-                    <input 
-                        type="password" 
-                        id="current-password" 
-                        required
-                        class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 outline-none transition-smooth"
-                        placeholder="请输入当前密码"
-                    >
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-2">新密码 <span class="text-red-500">*</span></label>
-                    <input 
-                        type="password" 
-                        id="new-password" 
-                        required
-                        minlength="6"
-                        class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 outline-none transition-smooth"
-                        placeholder="请输入新密码（至少6位）"
-                    >
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-2">确认新密码 <span class="text-red-500">*</span></label>
-                    <input 
-                        type="password" 
-                        id="confirm-password" 
-                        required
-                        minlength="6"
-                        class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 outline-none transition-smooth"
-                        placeholder="请再次输入新密码"
-                    >
-                </div>
-                <div class="flex space-x-3 pt-2">
-                    <button 
-                        type="button"
-                        id="cancel-password-change"
-                        class="flex-1 px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-smooth"
-                    >
-                        取消
-                    </button>
-                    <button 
-                        type="submit"
-                        class="flex-1 gradient-primary text-white px-4 py-2 rounded-lg hover:shadow-lg transition-smooth"
-                    >
-                        确认修改
-                    </button>
-                </div>
-            </form>
-        </div>
     </div>
 
     <!-- 回复弹窗 -->
@@ -451,81 +382,6 @@
                 showLoginPage();
             } catch (error) {
                 console.error('退出失败:', error);
-            }
-        });
-
-        // 打开修改密码弹窗
-        document.getElementById('change-password-btn').addEventListener('click', () => {
-            document.getElementById('password-modal').classList.remove('hidden');
-            document.getElementById('password-form').reset();
-        });
-
-        // 关闭修改密码弹窗
-        document.getElementById('close-password-modal').addEventListener('click', () => {
-            document.getElementById('password-modal').classList.add('hidden');
-        });
-
-        document.getElementById('cancel-password-change').addEventListener('click', () => {
-            document.getElementById('password-modal').classList.add('hidden');
-        });
-
-        // 修改密码
-        document.getElementById('password-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const currentPassword = document.getElementById('current-password').value;
-            const newPassword = document.getElementById('new-password').value;
-            const confirmPassword = document.getElementById('confirm-password').value;
-            
-            if (newPassword !== confirmPassword) {
-                showToast('两次输入的新密码不一致', 'error');
-                return;
-            }
-            
-            if (newPassword.length < 6) {
-                showToast('新密码长度至少为6位', 'error');
-                return;
-            }
-            
-            try {
-                // 先验证当前密码是否正确
-                const user = await client.auth.getUser();
-                if (!user || !user.data) {
-                    showToast('请先登录', 'error');
-                    return;
-                }
-                
-                // 更新密码（需要先登录验证当前密码）
-                const loginResult = await client.auth.login({
-                    user_name: user.data.user_name,
-                    password: currentPassword
-                });
-                
-                if (!loginResult.success) {
-                    showToast('当前密码错误', 'error');
-                    return;
-                }
-                
-                // 使用认证系统更新密码
-                const updateResult = await client.auth.updateUser({
-                    password: newPassword
-                });
-                
-                if (updateResult.success) {
-                    showToast('密码修改成功，请重新登录', 'success');
-                    document.getElementById('password-modal').classList.add('hidden');
-                    
-                    // 退出登录
-                    setTimeout(async () => {
-                        await client.auth.logout();
-                        showLoginPage();
-                    }, 1500);
-                } else {
-                    showToast('密码修改失败: ' + (updateResult.message || '请稍后重试'), 'error');
-                }
-            } catch (error) {
-                console.error('修改密码失败:', error);
-                showToast('修改密码失败，请稍后重试', 'error');
             }
         });
 
