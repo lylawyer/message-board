@@ -539,18 +539,20 @@
                 // 渲染列表
                 listEl.innerHTML = messages.map(msg => {
                     const isPinned = pinnedMessageIds.includes(msg.id);
+                    const isPrivate = msg.is_private === true || msg.is_private === 'true';
                     return `
-                    <div class="p-6 hover:bg-gray-50 transition-smooth ${msg.status === 'hidden' ? 'opacity-50' : ''} ${isPinned ? 'bg-yellow-50 border-l-4 border-yellow-400' : ''}">
+                    <div class="p-6 hover:bg-gray-50 transition-smooth ${msg.status === 'hidden' ? 'opacity-50' : ''} ${isPinned ? 'bg-yellow-50 border-l-4 border-yellow-400' : ''} ${isPrivate ? 'bg-blue-50' : ''}">
                         <div class="flex items-start justify-between">
                             <div class="flex-1">
                                 <div class="flex items-center space-x-3 mb-2">
-                                    <div class="w-10 h-10 rounded-full gradient-primary flex items-center justify-center text-white font-semibold">
-                                        ${msg.nickname.charAt(0).toUpperCase()}
+                                    <div class="w-10 h-10 rounded-full ${isPrivate ? 'bg-gray-400' : 'gradient-primary'} flex items-center justify-center text-white font-semibold">
+                                        ${isPrivate ? '🔒' : msg.nickname.charAt(0).toUpperCase()}
                                     </div>
                                     <div>
                                         <h3 class="font-semibold text-gray-900">${escapeHtml(msg.nickname)}</h3>
                                         <p class="text-xs text-gray-400">${formatDateTime(msg.created_at)}</p>
                                     </div>
+                                    ${isPrivate ? '<span class="px-2 py-1 rounded-full text-xs bg-blue-200 text-blue-800">🔐 悄悄话</span>' : ''}
                                     ${isPinned ? '<span class="px-2 py-1 rounded-full text-xs bg-yellow-200 text-yellow-800">📌 已置顶</span>' : ''}
                                     ${msg.status === 'hidden' ? '<span class="px-2 py-1 rounded-full text-xs bg-gray-200 text-gray-600">已隐藏</span>' : ''}
                                     ${msg.reply ? '<span class="px-2 py-1 rounded-full text-xs bg-green-100 text-green-600">已回复</span>' : '<span class="px-2 py-1 rounded-full text-xs bg-orange-100 text-orange-600">待回复</span>'}
