@@ -331,12 +331,16 @@
         async function checkAuth() {
             try {
                 const user = await client.auth.getUser();
-                if (user && user.data) {
+                console.log('checkAuth getUser:', user);
+                if (user && user.success && user.data) {
+                    console.log('User is logged in, showing admin page');
                     showAdminPage();
                     loadAdminMessages();
+                } else {
+                    console.log('User not logged in or getUser failed');
                 }
             } catch (error) {
-                console.log('未登录');
+                console.error('checkAuth error:', error);
             }
         }
 
