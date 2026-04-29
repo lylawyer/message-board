@@ -180,10 +180,14 @@
         window.addEventListener('DOMContentLoaded', async () => {
             console.log('🚀 页面加载，开始初始化...');
             
-            // 初始化SDK
-            await initSDK();
+            // 初始化SDK（可选，降级处理）
+            try {
+                await initSDK();
+            } catch (e) {
+                console.warn('SDK初始化失败，将使用直接API调用:', e);
+            }
             
-            // 加载配置
+            // 加载配置（使用直接API）
             await Promise.all([
                 loadAllConfig(),
                 loadAnnouncement(),
@@ -219,21 +223,23 @@
             ]);
         }
 
-        // ==================== 配置加载 ====================
+        // ==================== 配置加载（直接API）====================
         async function loadAllConfig() {
             try {
-                const result = await fetchWithTimeout(
-                    client.db.from('messages').list()
-                        .eq('nickname', '系统')
-                        .eq('status', 'hidden')
-                );
+                // 获取所有数据后在前端过滤
+                const response = await fetch(`${CONFIG.BAAS_API_URL}?key=${CONFIG.API_KEY}&table=messages&action=list`);
+                const result = await response.json();
                 
                 if (result.success && result.data) {
-                    // 解析置顶消息
-                    const pinnedMsgs = result.data.filter(m => 
+                    // 解析置顶消息（nickname=系统 且 content以[PINNED]开头）
+                    const configMsgs = result.data.filter(m => 
+                        m.nickname === '系统' && m.status === 'hidden'
+                    );
+                    const pinnedMsgs = configMsgs.filter(m => 
                         m.content && m.content.startsWith('[PINNED]')
                     );
                     pinnedMessageIds = pinnedMsgs.map(m => m.id);
+                    console.log('配置加载完成，置顶消息ID:', pinnedMessageIds);
                 }
             } catch (e) {
                 console.error('加载配置失败:', e);
@@ -242,14 +248,15 @@
 
         async function loadAnnouncement() {
             try {
-                const result = await fetchWithTimeout(
-                    client.db.from('messages').list()
-                        .eq('nickname', '系统')
-                        .eq('status', 'hidden')
-                );
+                // 获取所有数据后在前端过滤
+                const response = await fetch(`${CONFIG.BAAS_API_URL}?key=${CONFIG.API_KEY}&table=messages&action=list`);
+                const result = await response.json();
                 
                 if (result.success && result.data) {
+                    // 查找公告（nickname=系统 且 content以[ANNOUNCEMENT]开头）
                     const announcementMsg = result.data.find(m => 
+                        m.nickname === '系统' && 
+                        m.status === 'hidden' && 
                         m.content && m.content.startsWith('[ANNOUNCEMENT]')
                     );
                     if (announcementMsg) {
@@ -279,18 +286,22 @@
             listEl.innerHTML = '';
 
             try {
-                // 获取所有留言，统一过滤
-                const result = await fetchWithTimeout(
-                    client.db.from('messages').list()
-                        .order('created_at', 'desc')
-                );
+                console.log('开始加载留言...');
+                
+                // 直接使用 fetch 调用 API（绕过 SDK）
+                const response = await fetch(`${CONFIG.BAAS_API_URL}?key=${CONFIG.API_KEY}&table=messages&action=list`, {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                const result = await response.json();
+                console.log('API返回结果:', result);
 
                 loadingEl.classList.add('hidden');
 
                 if (result.success) {
                     const allMsgs = result.data || [];
                     console.log('获取到留言数:', allMsgs.length);
-                    console.log('留言数据:', JSON.stringify(allMsgs.slice(0, 3), null, 2));
                     renderMessages(allMsgs);
                 } else {
                     errorEl.classList.remove('hidden');
@@ -456,12 +467,20 @@
             try {
                 // 管理员回复逻辑
                 if (adminLoggedIn && replyToId && replyContent) {
-                    const updateResult = await fetchWithTimeout(
-                        client.db.from('messages').update(replyToId).set({
-                            reply: replyContent,
-                            replied_at: new Date().toISOString()
+                    const updateResult = await fetch(`${CONFIG.BAAS_API_URL}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            key: CONFIG.API_KEY,
+                            table: 'messages',
+                            action: 'update',
+                            id: replyToId,
+                            data: {
+                                reply: replyContent,
+                                replied_at: new Date().toISOString()
+                            }
                         })
-                    );
+                    }).then(r => r.json());
 
                     if (updateResult.success) {
                         showToast('回复成功！');
@@ -474,15 +493,25 @@
                     return;
                 }
 
-                // 普通留言/悄悄话
-                const result = await fetchWithTimeout(
-                    client.db.from('messages').insert().values({
-                        nickname: nickname,
-                        content: content,
-                        status: isPrivate ? 'private' : 'visible',  // 悄悄话用 'private' 标记
-                        created_at: new Date().toISOString()
+                // 普通留言/悄悄话 - 使用直接 fetch
+                console.log('提交留言:', { nickname, content, status: isPrivate ? 'private' : 'visible' });
+                const result = await fetch(`${CONFIG.BAAS_API_URL}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        key: CONFIG.API_KEY,
+                        table: 'messages',
+                        action: 'insert',
+                        data: {
+                            nickname: nickname,
+                            content: content,
+                            status: isPrivate ? 'private' : 'visible',
+                            created_at: new Date().toISOString()
+                        }
                     })
-                );
+                }).then(r => r.json());
+                
+                console.log('提交结果:', result);
 
                 if (result.success) {
                     if (isPrivate) {
@@ -499,6 +528,7 @@
                     showToast('发布失败: ' + (result.message || '未知错误'), 'error');
                 }
             } catch (error) {
+                console.error('提交失败:', error);
                 showToast('发布失败，请稍后重试', 'error');
             } finally {
                 submitBtn.disabled = false;
