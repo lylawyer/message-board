@@ -269,16 +269,18 @@
             emptyEl.classList.add('hidden');
             listEl.innerHTML = messages.map(msg => {
                 const isPinned = pinnedMessageIds.includes(msg.id);
+                const isAdminPost = msg.nickname === '管理员';
                 return `
                 <div class="bg-white rounded-xl shadow-md p-5 hover:shadow-lg transition-smooth animate-slide-up ${isPinned ? 'ring-2 ring-yellow-400' : ''}">
                     <div class="flex items-start justify-between mb-3">
                         <div class="flex items-center space-x-3">
-                            <div class="w-10 h-10 rounded-full gradient-primary flex items-center justify-center text-white font-semibold">
+                            <div class="w-10 h-10 rounded-full ${isAdminPost ? 'bg-gradient-to-r from-purple-500 to-pink-500' : 'gradient-primary'} flex items-center justify-center text-white font-semibold">
                                 ${msg.nickname.charAt(0).toUpperCase()}
                             </div>
                             <div>
                                 <div class="flex items-center space-x-2">
                                     <h3 class="font-semibold text-gray-900">${escapeHtml(msg.nickname)}</h3>
+                                    ${isAdminPost ? '<span class="px-2 py-0.5 rounded-full text-xs bg-purple-100 text-purple-600">👑 官方</span>' : ''}
                                     ${isPinned ? '<span class="text-yellow-500">📌</span>' : ''}
                                 </div>
                                 <p class="text-xs text-gray-400">${formatDateTime(msg.created_at)}</p>
@@ -329,16 +331,58 @@
             }
         }
 
+        // 敏感用户名列表
+        const forbiddenNicknames = ['管理员', '版主', 'admin', 'administrator', '版主', '坛主', '站长', '超级管理员', '系统', '官方'];
+        
+        // 检查是否为敏感用户名
+        function isForbiddenNickname(nickname) {
+            const lowerNickname = nickname.toLowerCase();
+            return forbiddenNicknames.some(name => 
+                lowerNickname.includes(name.toLowerCase()) || 
+                nickname.includes(name)
+            );
+        }
+
+        // 检查当前登录用户是否为管理员
+        let isAdmin = false;
+        
+        async function checkIfAdmin() {
+            try {
+                const user = await client.auth.getUser();
+                if (user && user.data && (user.data.user_name === 'admin_new' || user.data.user_name === 'admin')) {
+                    isAdmin = true;
+                    return true;
+                }
+            } catch (e) {
+                // 不是管理员
+            }
+            return false;
+        }
+
         // 提交留言
         document.getElementById('message-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             
-            const nickname = document.getElementById('nickname').value.trim();
+            let nickname = document.getElementById('nickname').value.trim();
             const content = document.getElementById('content').value.trim();
             
             if (!nickname || !content) {
                 showToast('请填写昵称和留言内容', 'warning');
                 return;
+            }
+            
+            // 检查是否为管理员
+            const adminLoggedIn = await checkIfAdmin();
+            
+            // 如果是管理员，强制使用"管理员"作为昵称
+            if (adminLoggedIn) {
+                nickname = '管理员';
+            } else {
+                // 普通用户检查敏感用户名
+                if (isForbiddenNickname(nickname)) {
+                    showToast('该昵称包含敏感词汇，请使用其他昵称', 'error');
+                    return;
+                }
             }
             
             const submitBtn = e.target.querySelector('button[type="submit"]');
@@ -362,6 +406,7 @@
                 
                 if (result.success) {
                     showToast('留言发布成功！', 'success');
+                    document.getElementById('nickname').value = '';
                     document.getElementById('content').value = '';
                     await loadMessages();
                 } else {
