@@ -506,10 +506,10 @@
                     return;
                 }
                 
-                // 更新密码
-                const updateResult = await client.db.from('admins').update()
-                    .set({ password: newPassword })
-                    .eq('id', user.data.id);
+                // 使用认证系统更新密码
+                const updateResult = await client.auth.updateUser({
+                    password: newPassword
+                });
                 
                 if (updateResult.success) {
                     showToast('密码修改成功，请重新登录', 'success');
@@ -521,7 +521,7 @@
                         showLoginPage();
                     }, 1500);
                 } else {
-                    showToast('密码修改失败: ' + updateResult.message, 'error');
+                    showToast('密码修改失败: ' + (updateResult.message || '请稍后重试'), 'error');
                 }
             } catch (error) {
                 console.error('修改密码失败:', error);
