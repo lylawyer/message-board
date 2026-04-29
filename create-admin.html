@@ -19,15 +19,15 @@
         async function createAdmin() {
             try {
                 const result = await client.auth.register({
-                    user_name: 'admin',
-                    password: 'admin123',
+                    user_name: 'admin_new',
+                    password: 'aiwoziji',
                     nickname: '管理员'
                 });
                 
                 document.getElementById('result').innerHTML = `
                     <p style="color: green;">✅ 管理员账号创建成功！</p>
-                    <p>用户名: admin</p>
-                    <p>密码: admin123</p>
+                    <p>用户名: admin_new</p>
+                    <p>密码: aiwoziji</p>
                     <p><a href="admin.html">点击这里登录管理后台</a></p>
                 `;
             } catch (error) {
