@@ -325,7 +325,7 @@
             listEl.innerHTML = messages.map(msg => {
                 const isPinned = pinnedMessageIds.includes(msg.id);
                 const isAdminPost = msg.nickname === '管理员';
-                const isPrivate = msg.is_private === true || msg.is_private === 'true';
+                const isPrivate = privateMessageIds.includes(msg.id);
                 
                 // 悄悄话留言显示特殊样式
                 if (isPrivate) {
@@ -417,6 +417,63 @@
             }
         }
 
+        // 全局变量：存储悄悄话留言 ID 列表
+        let privateMessageIds = [];
+
+        // 加载悄悄话配置
+        async function loadPrivateConfig() {
+            try {
+                const result = await client.db.from('messages').list()
+                    .eq('nickname', '系统')
+                    .eq('status', 'hidden');
+                
+                if (result.success && result.data && result.data.length > 0) {
+                    const configMsg = result.data.find(m => m.content && m.content.startsWith('[PRIVATE_CONFIG]'));
+                    if (configMsg) {
+                        privateMessageIds = JSON.parse(configMsg.content.replace('[PRIVATE_CONFIG] ', ''));
+                    }
+                }
+            } catch (e) {
+                console.error('加载悄悄话配置失败:', e);
+            }
+        }
+
+        // 保存悄悄话配置
+        async function savePrivateConfig() {
+            try {
+                const result = await client.db.from('messages').list()
+                    .eq('nickname', '系统')
+                    .eq('status', 'hidden');
+                
+                if (result.success && result.data && result.data.length > 0) {
+                    const configMsg = result.data.find(m => m.content && m.content.startsWith('[PRIVATE_CONFIG]'));
+                    if (configMsg) {
+                        await client.db.from('messages').update()
+                            .set({ content: '[PRIVATE_CONFIG] ' + JSON.stringify(privateMessageIds) })
+                            .eq('id', configMsg.id);
+                    } else {
+                        // 创建配置记录
+                        await client.db.from('messages').insert().values({
+                            nickname: '系统',
+                            content: '[PRIVATE_CONFIG] ' + JSON.stringify(privateMessageIds),
+                            status: 'hidden',
+                            created_at: new Date().toISOString()
+                        });
+                    }
+                } else {
+                    // 创建配置记录
+                    await client.db.from('messages').insert().values({
+                        nickname: '系统',
+                        content: '[PRIVATE_CONFIG] ' + JSON.stringify(privateMessageIds),
+                        status: 'hidden',
+                        created_at: new Date().toISOString()
+                    });
+                }
+            } catch (e) {
+                console.error('保存悄悄话配置失败:', e);
+            }
+        }
+
         // 敏感用户名列表
         const forbiddenNicknames = ['管理员', '版主', 'admin', 'administrator', '版主', '坛主', '站长', '超级管理员', '系统', '官方'];
         
@@ -488,14 +545,20 @@
                     nickname: nickname,
                     content: content,
                     status: 'visible',
-                    is_private: isPrivate,
                     created_at: new Date().toISOString()
                 });
                 
                 if (result.success) {
+                    // 如果是悄悄话，保存到配置
+                    if (isPrivate && result.data) {
+                        privateMessageIds.push(result.data);
+                        await savePrivateConfig();
+                    }
+                    
                     showToast('留言发布成功！', 'success');
                     document.getElementById('nickname').value = '';
                     document.getElementById('content').value = '';
+                    document.getElementById('is-private').checked = false;
                     await loadMessages();
                 } else {
                     showToast('发布失败: ' + result.message, 'error');
@@ -520,6 +583,8 @@
             } catch (e) {
                 console.log('访客登录失败，可能是已登录状态');
             }
+            // 加载悄悄话配置
+            await loadPrivateConfig();
             // 加载公告
             loadAnnouncement();
             // 加载留言
