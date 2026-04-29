@@ -806,6 +806,9 @@
                   .eq('id', id);
 
               if (result.success) {
+                  // 清除前台缓存，确保删除后立即生效
+                  localStorage.removeItem('mb_cache_all_messages');
+                  
                   showToast('删除成功', 'success');
                   loadAdminMessages();
               } else {
