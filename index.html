@@ -54,11 +54,9 @@
             .gradient-subtle { @apply bg-gradient-to-br from-gray-50 to-gray-100; }
         }
     </style>
-    <!-- 加载 aipexbase SDK -->
     <script src="https://cdn.jsdelivr.net/npm/aipexbase-js@latest/dist/aipexbase.umd.min.js"></script>
 </head>
 <body class="gradient-subtle min-h-screen">
-    <!-- 顶部导航 -->
     <nav class="sticky top-0 z-50 glass border-b border-gray-200/50">
         <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between h-16 items-center">
@@ -84,7 +82,6 @@
         </div>
     </nav>
 
-    <!-- 主体内容 -->
     <main class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 animate-fade-in">
         <!-- 公告区域 -->
         <div id="announcement-section" class="bg-gradient-to-r from-purple-50 to-pink-50 rounded-2xl shadow-lg p-6 mb-8 border border-purple-100 hidden">
@@ -140,7 +137,6 @@
                     ></textarea>
                     <p class="text-xs text-gray-400 mt-1 text-right"><span id="char-count">0</span>/1000</p>
                 </div>
-                <!-- 私密留言 -->
                 <div class="flex items-center space-x-3 p-4 bg-gray-50 rounded-xl">
                     <input
                         type="checkbox"
@@ -200,24 +196,21 @@
         </div>
     </main>
 
-    <!-- Toast 提示 -->
     <div id="toast-container" class="fixed top-4 right-4 z-50 space-y-3"></div>
 
     <script>
         // ========== 全局变量 ==========
         var client = null;
-        const API_TIMEOUT = 10000; // 10秒超时
+        const API_TIMEOUT = 10000;
         const NICKNAME_MAX = 20;
         const CONTENT_MAX = 1000;
         let pinnedMessageIds = [];
-        let privateMessageIds = [];
 
-        // ========== 初始化 aipexbase 客户端 ==========
+        // ========== 初始化客户端 ==========
         function initClient() {
             return new Promise((resolve, reject) => {
                 let attempts = 0;
-                const maxAttempts = 100; // 最多等待5秒 (100 * 50ms)
-
+                const maxAttempts = 100;
                 function tryInit() {
                     attempts++;
                     if (typeof aipexbase !== 'undefined') {
@@ -226,18 +219,16 @@
                                 baseUrl: 'https://baas.kuafuai.net/baas-api',
                                 apiKey: 'baas_zRu6UoOb'
                             });
-                            console.log('aipexbase 客户端初始化成功');
                             resolve(client);
                         } catch (e) {
                             reject(e);
                         }
                     } else if (attempts >= maxAttempts) {
-                        reject(new Error('SDK 加载超时，请刷新页面'));
+                        reject(new Error('SDK 加载超时'));
                     } else {
                         setTimeout(tryInit, 50);
                     }
                 }
-
                 tryInit();
             });
         }
@@ -267,7 +258,6 @@
             setTimeout(() => {
                 toast.style.opacity = '0';
                 toast.style.transform = 'translateX(100%)';
-                toast.style.transition = 'all 0.3s ease-out';
                 setTimeout(() => toast.remove(), 300);
             }, 3000);
         }
@@ -295,17 +285,16 @@
             return div.innerHTML;
         }
 
-        // ========== API 请求封装 ==========
         function fetchWithTimeout(promise, timeout = API_TIMEOUT) {
             return Promise.race([
                 promise,
                 new Promise((_, reject) =>
-                    setTimeout(() => reject(new Error('请求超时，请检查网络')), timeout)
+                    setTimeout(() => reject(new Error('请求超时')), timeout)
                 )
             ]);
         }
 
-        // ========== 数据库操作 ==========
+        // ========== 配置加载 ==========
         async function loadAllConfig() {
             try {
                 const result = await fetchWithTimeout(
@@ -317,10 +306,6 @@
                     const pinnedConfig = result.data.find(m => m.content && m.content.startsWith('[PINNED_CONFIG]'));
                     if (pinnedConfig) {
                         pinnedMessageIds = JSON.parse(pinnedConfig.content.replace('[PINNED_CONFIG] ', ''));
-                    }
-                    const privateConfig = result.data.find(m => m.content && m.content.startsWith('[PRIVATE_CONFIG]'));
-                    if (privateConfig) {
-                        privateMessageIds = JSON.parse(privateConfig.content.replace('[PRIVATE_CONFIG] ', ''));
                     }
                 }
             } catch (e) {
@@ -383,24 +368,6 @@
             listEl.innerHTML = messages.map(msg => {
                 const isPinned = pinnedMessageIds.includes(msg.id);
                 const isAdminPost = msg.nickname === '管理员';
-                const isPrivate = privateMessageIds.includes(msg.id);
-
-                if (isPrivate) {
-                    return `
-                    <div class="bg-gray-50 rounded-xl shadow-md p-5 border border-gray-200">
-                        <div class="flex items-center space-x-3">
-                            <div class="w-10 h-10 rounded-full bg-gray-400 flex items-center justify-center text-white font-semibold">🔒</div>
-                            <div>
-                                <h3 class="font-semibold text-gray-600">${escapeHtml(msg.nickname)}</h3>
-                                <p class="text-xs text-gray-400">${formatDateTime(msg.created_at)}</p>
-                            </div>
-                        </div>
-                        <div class="mt-3 p-4 bg-gray-100 rounded-lg text-center">
-                            <p class="text-sm text-gray-500">🔒 私密留言，仅管理员可见</p>
-                        </div>
-                    </div>
-                    `;
-                }
 
                 return `
                 <div class="bg-white rounded-xl shadow-md p-5 ${isPinned ? 'ring-2 ring-yellow-400' : ''}">
@@ -453,6 +420,7 @@
             listEl.innerHTML = '';
 
             try {
+                // 只加载 status='visible' 的留言（私密留言 status='hidden'，不会显示在这里）
                 const result = await fetchWithTimeout(
                     client.db.from('messages').list()
                         .eq('status', 'visible')
@@ -539,17 +507,23 @@
             `;
 
             try {
+                // 私密留言：status='hidden'，不会出现在公开列表中
+                // 普通留言：status='visible'
                 const result = await fetchWithTimeout(
                     client.db.from('messages').insert().values({
                         nickname: nickname,
                         content: content,
-                        status: 'visible',
+                        status: isPrivate ? 'hidden' : 'visible',
                         created_at: new Date().toISOString()
                     })
                 );
 
                 if (result.success) {
-                    showToast('留言发布成功！');
+                    if (isPrivate) {
+                        showToast('私密留言发布成功，管理员可见');
+                    } else {
+                        showToast('留言发布成功！');
+                    }
                     document.getElementById('nickname').value = '';
                     document.getElementById('content').value = '';
                     document.getElementById('is-private').checked = false;
@@ -572,12 +546,10 @@
                 console.log('开始初始化...');
                 await initClient();
 
-                // 尝试匿名登录（不等待结果）
                 fetchWithTimeout(
                     client.auth.login({ user_name: 'guest', password: 'guest123' })
                 ).catch(() => {});
 
-                // 并行加载数据
                 await Promise.all([loadAllConfig(), loadAnnouncement(), loadMessages()]);
                 console.log('初始化完成');
             } catch (e) {
@@ -588,7 +560,6 @@
             }
         }
 
-        // DOM 加载完成后启动
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', mainInit);
         } else {
