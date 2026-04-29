@@ -467,19 +467,22 @@
             try {
                 // 管理员回复逻辑
                 if (adminLoggedIn && replyToId && replyContent) {
+                    const formData = new URLSearchParams();
+                    formData.append('key', CONFIG.API_KEY);
+                    formData.append('table', 'messages');
+                    formData.append('action', 'update');
+                    formData.append('id', replyToId);
+                    formData.append('data', JSON.stringify({
+                        reply: replyContent,
+                        replied_at: new Date().toISOString()
+                    }));
+                    
                     const updateResult = await fetch(`${CONFIG.BAAS_API_URL}`, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            key: CONFIG.API_KEY,
-                            table: 'messages',
-                            action: 'update',
-                            id: replyToId,
-                            data: {
-                                reply: replyContent,
-                                replied_at: new Date().toISOString()
-                            }
-                        })
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                        },
+                        body: formData.toString()
                     }).then(r => r.json());
 
                     if (updateResult.success) {
@@ -495,20 +498,26 @@
 
                 // 普通留言/悄悄话 - 使用直接 fetch
                 console.log('提交留言:', { nickname, content, status: isPrivate ? 'private' : 'visible' });
+                
+                // 构造表单数据
+                const formData = new URLSearchParams();
+                formData.append('key', CONFIG.API_KEY);
+                formData.append('table', 'messages');
+                formData.append('action', 'insert');
+                const messageData = {
+                    nickname: nickname,
+                    content: content,
+                    status: isPrivate ? 'private' : 'visible',
+                    created_at: new Date().toISOString()
+                };
+                formData.append('data', JSON.stringify(messageData));
+                
                 const result = await fetch(`${CONFIG.BAAS_API_URL}`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        key: CONFIG.API_KEY,
-                        table: 'messages',
-                        action: 'insert',
-                        data: {
-                            nickname: nickname,
-                            content: content,
-                            status: isPrivate ? 'private' : 'visible',
-                            created_at: new Date().toISOString()
-                        }
-                    })
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: formData.toString()
                 }).then(r => r.json());
                 
                 console.log('提交结果:', result);
