@@ -233,16 +233,26 @@
                 return;
             }
             
+            // 置顶留言排在前面
+            messages.sort((a, b) => {
+                if (a.pinned && !b.pinned) return -1;
+                if (!a.pinned && b.pinned) return 1;
+                return new Date(b.created_at) - new Date(a.created_at);
+            });
+            
             emptyEl.classList.add('hidden');
             listEl.innerHTML = messages.map(msg => `
-                <div class="bg-white rounded-xl shadow-md p-5 hover:shadow-lg transition-smooth animate-slide-up">
+                <div class="bg-white rounded-xl shadow-md p-5 hover:shadow-lg transition-smooth animate-slide-up ${msg.pinned ? 'ring-2 ring-yellow-400' : ''}">
                     <div class="flex items-start justify-between mb-3">
                         <div class="flex items-center space-x-3">
                             <div class="w-10 h-10 rounded-full gradient-primary flex items-center justify-center text-white font-semibold">
                                 ${msg.nickname.charAt(0).toUpperCase()}
                             </div>
                             <div>
-                                <h3 class="font-semibold text-gray-900">${escapeHtml(msg.nickname)}</h3>
+                                <div class="flex items-center space-x-2">
+                                    <h3 class="font-semibold text-gray-900">${escapeHtml(msg.nickname)}</h3>
+                                    ${msg.pinned ? '<span class="text-yellow-500">📌</span>' : ''}
+                                </div>
                                 <p class="text-xs text-gray-400">${formatDateTime(msg.created_at)}</p>
                             </div>
                         </div>
