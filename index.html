@@ -193,11 +193,28 @@
     <div id="toast-container" class="fixed top-4 right-4 z-50 space-y-3"></div>
 
     <script>
-        // 初始化客户端
-        const client = aipexbase.createClient({
-            baseUrl: 'https://baas.kuafuai.net/baas-api',
-            apiKey: 'baas_zRu6UoOb'
-        });
+        // 全局变量
+        let client = null;
+        
+        // 初始化客户端（确保 SDK 加载完成）
+        function initClient() {
+            if (typeof aipexbase !== 'undefined') {
+                client = aipexbase.createClient({
+                    baseUrl: 'https://baas.kuafuai.net/baas-api',
+                    apiKey: 'baas_zRu6UoOb'
+                });
+                console.log('Client initialized successfully');
+                // 初始化完成后加载留言
+                init();
+            } else {
+                console.error('aipexbase SDK not loaded');
+                // 重试
+                setTimeout(initClient, 100);
+            }
+        }
+        
+        // 页面加载完成后初始化
+        window.addEventListener('load', initClient);
 
         // Toast 提示函数
         function showToast(message, type = 'success') {
@@ -327,7 +344,7 @@
                 const isAdminPost = msg.nickname === '管理员';
                 const isPrivate = privateMessageIds.includes(msg.id);
                 
-                // 悄悄话留言显示特殊样式
+                // 悄悄话留言显示特殊样式（但管理员回复可见）
                 if (isPrivate) {
                     return `
                     <div class="bg-gray-50 rounded-xl shadow-md p-5 hover:shadow-lg transition-smooth animate-slide-up border border-gray-200">
@@ -345,13 +362,29 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="bg-gray-100 rounded-lg p-4 text-center">
+                        <div class="bg-gray-100 rounded-lg p-4 text-center mb-3">
                             <svg class="w-8 h-8 mx-auto mb-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
                             </svg>
                             <p class="text-sm text-gray-500">该用户选择了隐藏留言内容</p>
                             <p class="text-xs text-gray-400 mt-1">仅管理员可见</p>
                         </div>
+                        ${msg.admin_reply ? `
+                        <div class="mt-3 pt-3 border-t border-gray-200">
+                            <div class="flex items-start space-x-3">
+                                <div class="w-8 h-8 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center text-white text-sm font-semibold flex-shrink-0">
+                                    👑
+                                </div>
+                                <div class="flex-1">
+                                    <div class="flex items-center space-x-2 mb-1">
+                                        <span class="text-sm font-semibold text-purple-600">管理员回复</span>
+                                        <span class="text-xs text-gray-400">${msg.reply_time ? formatDateTime(msg.reply_time) : ''}</span>
+                                    </div>
+                                    <p class="text-sm text-gray-700">${escapeHtml(msg.admin_reply)}</p>
+                                </div>
+                            </div>
+                        </div>
+                        ` : ''}
                     </div>
                     `;
                 }
@@ -590,7 +623,7 @@
             // 加载留言
             loadMessages();
         }
-        init();
+        // 注意：init() 已在 initClient() 中调用
     </script>
 </body>
 </html>
