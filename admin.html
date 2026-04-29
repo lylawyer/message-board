@@ -57,7 +57,28 @@
             .gradient-subtle { @apply bg-gradient-to-br from-gray-50 to-gray-100; }
         }
     </style>
-    <script src="https://cdn.jsdelivr.net/npm/aipexbase-js/dist/aipexbase.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/aipexbase-js/dist/aipexbase.umd.min.js" onload="initClient()" onerror="console.error('Failed to load aipexbase')"></script>
+    <script>
+        // 全局变量
+        var client = null;
+        var currentMessageId = null;
+        
+        // 初始化客户端（由 SDK 脚本 onload 触发）
+        function initClient() {
+            console.log('initClient called, aipexbase available:', typeof aipexbase !== 'undefined');
+            if (typeof aipexbase !== 'undefined') {
+                client = aipexbase.createClient({
+                    baseUrl: 'https://baas.kuafuai.net/baas-api',
+                    apiKey: 'baas_zRu6UoOb'
+                });
+                console.log('Client initialized successfully');
+                // 初始化完成后检查登录状态
+                checkAuth();
+            } else {
+                console.error('aipexbase SDK not loaded');
+            }
+        }
+    </script>
 </head>
 <body class="gradient-subtle min-h-screen">
     <!-- 登录页面 -->
@@ -273,41 +294,7 @@
     <div id="toast-container" class="fixed top-4 right-4 z-50 space-y-3"></div>
 
     <script>
-        // 全局变量
-        let client = null;
-        let currentMessageId = null;
-        
-        // 初始化客户端（确保 SDK 加载完成）
-        function initClient() {
-            if (typeof aipexbase !== 'undefined') {
-                client = aipexbase.createClient({
-                    baseUrl: 'https://baas.kuafuai.net/baas-api',
-                    apiKey: 'baas_zRu6UoOb'
-                });
-                console.log('Client initialized successfully');
-                // 初始化完成后检查登录状态
-                checkAuth();
-            } else {
-                console.error('aipexbase SDK not loaded, retrying...');
-                // 重试
-                setTimeout(initClient, 100);
-            }
-        }
-        
-        // 多种方式确保初始化
-        // 方式1: DOMContentLoaded
-        document.addEventListener('DOMContentLoaded', function() {
-            console.log('DOMContentLoaded triggered');
-            initClient();
-        });
-        
-        // 方式2: window.onload 作为后备
-        window.onload = function() {
-            console.log('window.onload triggered');
-            if (!client) {
-                initClient();
-            }
-        };
+        // 注意：client 和 initClient 已在 head 中定义
 
         // Toast 提示函数
         function showToast(message, type = 'success') {
