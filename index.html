@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>在野留言板</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@aipexbase/baas-sdk@latest" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/aipexbase-js/dist/aipexbase.umd.min.js"></script>
     <script src="js/utils.js"></script>
     <script>
         tailwind.config = {
@@ -222,6 +222,19 @@
         let pinnedMessageIds = [];
         let allMessagesCache = null; // 缓存所有消息数据
         let searchQuery = ''; // 当前搜索关键词
+        let client = null; // SDK 客户端
+
+        // 初始化 SDK 客户端
+        function initClient() {
+            if (!client && typeof aipexbase !== 'undefined') {
+                client = aipexbase.createClient({
+                    baseUrl: CONFIG.BAAS_API_URL,
+                    apiKey: CONFIG.API_KEY
+                });
+                console.log('✅ SDK 客户端初始化完成');
+            }
+            return client;
+        }
 
         // ==================== 搜索功能 ====================
         function filterMessagesBySearch(messages) {
@@ -267,18 +280,14 @@
         window.addEventListener('DOMContentLoaded', async () => {
             console.log('🚀 页面加载，开始初始化...');
             
-            // 初始化SDK（可选，降级处理）
-            try {
-                await initSDK();
-            } catch (e) {
-                console.warn('SDK初始化失败，将使用直接API调用:', e);
-            }
+            // 初始化 SDK 客户端
+            initClient();
             
-            // 统一加载所有数据（只调用一次API）
+            // 统一加载所有数据
             await loadAllData();
         });
 
-        // ==================== 统一数据加载（合并重复API调用）====================
+        // ==================== 统一数据加载（使用 SDK）====================
         async function loadAllData() {
             try {
                 console.log('开始加载所有数据...');
@@ -306,13 +315,13 @@
                     return;
                 }
                 
-                // 缓存未命中，调用API
-                const response = await fetch(`${CONFIG.BAAS_API_URL}?key=${CONFIG.API_KEY}&table=messages&action=list`, {
-                    method: 'GET',
-                    headers: { 'Content-Type': 'application/json' }
-                });
+                // 缓存未命中，使用 SDK 调用 API
+                initClient();
+                if (!client) {
+                    throw new Error('SDK 客户端未初始化');
+                }
                 
-                const result = await response.json();
+                const result = await client.db.from('messages').list();
                 
                 if (result.success && result.data) {
                     // 保存到缓存
@@ -355,35 +364,9 @@
             errorMsg.textContent = message;
         }
 
-        async function initSDK() {
-            return new Promise((resolve, reject) => {
-                const checkBaaS = setInterval(() => {
-                    if (window.AipexBase) {
-                        clearInterval(checkBaaS);
-                        window.client = new AipexBase(CONFIG.API_KEY, CONFIG.BAAS_API_URL);
-                        console.log('✅ AipexBase SDK 初始化完成');
-                        resolve();
-                    }
-                }, 100);
-                
-                setTimeout(() => {
-                    clearInterval(checkBaaS);
-                    console.error('❌ SDK 初始化超时');
-                    reject(new Error('SDK初始化超时'));
-                }, 15000);
-            });
-        }
+        // initSDK 函数已移除（使用 initClient 替代）
 
-        function fetchWithTimeout(promise, timeout = CONFIG.REQUEST_TIMEOUT) {
-            return Promise.race([
-                promise,
-                new Promise((_, reject) => 
-                    setTimeout(() => reject(new Error('请求超时')), timeout)
-                )
-            ]);
-        }
-
-        // loadAllConfig 函数已合并到 loadAllData 中
+        // fetchWithTimeout 函数已移除（使用 SDK 替代）
 
         async function loadAnnouncementFromCache(data) {
             try {
@@ -428,13 +411,13 @@
                     return;
                 }
                 
-                // 否则重新调用API
-                const response = await fetch(`${CONFIG.BAAS_API_URL}?key=${CONFIG.API_KEY}&table=messages&action=list`, {
-                    method: 'GET',
-                    headers: { 'Content-Type': 'application/json' }
-                });
+                // 否则使用 SDK 重新调用
+                initClient();
+                if (!client) {
+                    throw new Error('SDK 客户端未初始化');
+                }
                 
-                const result = await response.json();
+                const result = await client.db.from('messages').list();
                 console.log('API返回结果:', result);
 
                 loadingEl.classList.add('hidden');
@@ -605,22 +588,20 @@
             `;
 
             try {
+                // 初始化 SDK 客户端
+                initClient();
+                if (!client) {
+                    throw new Error('SDK 客户端未初始化');
+                }
+                
                 // 管理员回复逻辑
                 if (adminLoggedIn && replyToId && replyContent) {
-                    const updateResult = await fetch(`${CONFIG.BAAS_API_URL}`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            key: CONFIG.API_KEY,
-                            table: 'messages',
-                            action: 'update',
-                            id: replyToId,
-                            data: {
-                                reply: replyContent,
-                                replied_at: new Date().toISOString()
-                            }
+                    const updateResult = await client.db.from('messages').update()
+                        .set({
+                            reply: replyContent,
+                            replied_at: new Date().toISOString()
                         })
-                    }).then(r => r.json());
+                        .eq('id', replyToId);
 
                     if (updateResult.success) {
                         showToast('回复成功！');
@@ -633,7 +614,7 @@
                     return;
                 }
 
-                // 普通留言/悄悄话 - 使用直接 fetch
+                // 普通留言/悄悄话 - 使用 SDK
                 console.log('提交留言:', { nickname, content, status: isPrivate ? 'private' : 'visible' });
                 
                 // 准备提交数据
@@ -654,16 +635,7 @@
                     submitData.password_hash = await sha256(password);
                 }
                 
-                const result = await fetch(`${CONFIG.BAAS_API_URL}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        key: CONFIG.API_KEY,
-                        table: 'messages',
-                        action: 'insert',
-                        data: submitData
-                    })
-                }).then(r => r.json());
+                const result = await client.db.from('messages').insert().values(submitData);
                 
                 console.log('提交结果:', result);
 
@@ -696,34 +668,9 @@
             }
         });
 
-        // 管理员登录
-        document.getElementById('admin-login-btn').addEventListener('click', async () => {
-            // 检查是否被锁定
-            const lockTime = getRemainingLockTime();
-            if (lockTime > 0) {
-                showToast(`登录失败次数过多，请 ${Math.ceil(lockTime/60)} 分钟后再试`, 'error');
-                return;
-            }
-
-            const password = prompt('请输入管理员密钥：');
-            if (!password) return;
-
-            const hash = await sha256(password);
-            if (hash === CONFIG.ADMIN_KEY_HASH) {
-                sessionStorage.setItem('is_admin', 'true');
-                recordLoginAttempt(true);
-                updateAdminUI(true);
-                showToast('管理员登录成功');
-            } else {
-                recordLoginAttempt(false);
-                const attempts = getLoginAttempts();
-                const remaining = CONFIG.MAX_LOGIN_ATTEMPTS - attempts.count;
-                if (attempts.isLocked) {
-                    showToast(`登录失败次数过多，请 ${Math.ceil(getRemainingLockTime()/60)} 分钟后再试`, 'error');
-                } else {
-                    showToast(`密钥错误，还剩 ${remaining} 次机会`, 'error');
-                }
-            }
+        // 管理员登录 - 跳转到管理后台
+        document.getElementById('admin-login-btn').addEventListener('click', () => {
+            window.location.href = 'admin.html';
         });
 
         async function checkIfAdmin() {
@@ -796,45 +743,7 @@
         });
 
         // ==================== 工具函数 ====================
-        // SHA-256 哈希函数
-        async function sha256(text) {
-            const encoder = new TextEncoder();
-            const data = encoder.encode(text);
-            const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-            const hashArray = Array.from(new Uint8Array(hashBuffer));
-            return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-        }
-
-        // 检查管理员登录状态（带失败次数限制）
-        function getLoginAttempts() {
-            const data = JSON.parse(localStorage.getItem('admin_login_attempts') || '{"count":0,"lockedUntil":0}');
-            if (data.lockedUntil > Date.now()) {
-                return { ...data, isLocked: true };
-            }
-            return { ...data, isLocked: false };
-        }
-
-        function recordLoginAttempt(success) {
-            const data = getLoginAttempts();
-            if (success) {
-                localStorage.removeItem('admin_login_attempts');
-            } else {
-                data.count = (data.count || 0) + 1;
-                if (data.count >= CONFIG.MAX_LOGIN_ATTEMPTS) {
-                    data.lockedUntil = Date.now() + CONFIG.LOCKOUT_DURATION;
-                    data.count = 0;
-                }
-                localStorage.setItem('admin_login_attempts', JSON.stringify(data));
-            }
-        }
-
-        function getRemainingLockTime() {
-            const data = getLoginAttempts();
-            if (data.isLocked) {
-                return Math.ceil((data.lockedUntil - Date.now()) / 1000);
-            }
-            return 0;
-        }
+        // sha256 函数已移至 js/utils.js
 
         // escapeHtml 函数已移至 js/utils.js
 
