@@ -217,12 +217,36 @@
             return `${year}-${month}-${day} ${hour}:${minute}`;
         }
 
+        // 全局变量：存储置顶的留言 ID 列表
+        let pinnedMessageIds = [];
+
+        // 加载置顶配置
+        async function loadPinnedConfig() {
+            try {
+                const result = await client.db.from('messages').list()
+                    .eq('nickname', '系统')
+                    .eq('status', 'hidden');
+                
+                if (result.success && result.data && result.data.length > 0) {
+                    const configMsg = result.data.find(m => m.content && m.content.startsWith('[PINNED_CONFIG]'));
+                    if (configMsg) {
+                        pinnedMessageIds = JSON.parse(configMsg.content.replace('[PINNED_CONFIG] ', ''));
+                    }
+                }
+            } catch (e) {
+                console.error('加载置顶配置失败:', e);
+            }
+        }
+
         // 渲染留言列表
-        function renderMessages(messages) {
+        async function renderMessages(messages) {
             const listEl = document.getElementById('messages-list');
             const emptyEl = document.getElementById('empty-state');
             const loadingEl = document.getElementById('loading');
             const countEl = document.getElementById('message-count');
+            
+            // 加载置顶配置
+            await loadPinnedConfig();
             
             loadingEl.classList.add('hidden');
             countEl.textContent = messages.length;
@@ -235,14 +259,18 @@
             
             // 置顶留言排在前面
             messages.sort((a, b) => {
-                if (a.pinned && !b.pinned) return -1;
-                if (!a.pinned && b.pinned) return 1;
+                const aPinned = pinnedMessageIds.includes(a.id);
+                const bPinned = pinnedMessageIds.includes(b.id);
+                if (aPinned && !bPinned) return -1;
+                if (!aPinned && bPinned) return 1;
                 return new Date(b.created_at) - new Date(a.created_at);
             });
             
             emptyEl.classList.add('hidden');
-            listEl.innerHTML = messages.map(msg => `
-                <div class="bg-white rounded-xl shadow-md p-5 hover:shadow-lg transition-smooth animate-slide-up ${msg.pinned ? 'ring-2 ring-yellow-400' : ''}">
+            listEl.innerHTML = messages.map(msg => {
+                const isPinned = pinnedMessageIds.includes(msg.id);
+                return `
+                <div class="bg-white rounded-xl shadow-md p-5 hover:shadow-lg transition-smooth animate-slide-up ${isPinned ? 'ring-2 ring-yellow-400' : ''}">
                     <div class="flex items-start justify-between mb-3">
                         <div class="flex items-center space-x-3">
                             <div class="w-10 h-10 rounded-full gradient-primary flex items-center justify-center text-white font-semibold">
@@ -251,7 +279,7 @@
                             <div>
                                 <div class="flex items-center space-x-2">
                                     <h3 class="font-semibold text-gray-900">${escapeHtml(msg.nickname)}</h3>
-                                    ${msg.pinned ? '<span class="text-yellow-500">📌</span>' : ''}
+                                    ${isPinned ? '<span class="text-yellow-500">📌</span>' : ''}
                                 </div>
                                 <p class="text-xs text-gray-400">${formatDateTime(msg.created_at)}</p>
                             </div>
@@ -273,7 +301,8 @@
                         </div>
                     ` : ''}
                 </div>
-            `).join('');
+            `;
+            }).join('');
         }
 
         // HTML转义
