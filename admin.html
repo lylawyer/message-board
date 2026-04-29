@@ -396,10 +396,6 @@
             }
         });
 
-        // 全局变量：存储置顶的留言 ID 列表
-        let pinnedMessageIds = [];
-        let announcementMsgId = null;
-
         // 加载公告
         async function loadAnnouncement() {
             try {
@@ -453,8 +449,7 @@
         // 保存公告按钮事件
         document.getElementById('save-announcement-btn').addEventListener('click', saveAnnouncement);
 
-        // 全局变量：存储置顶和悄悄话的留言 ID 列表
-        let pinnedMessageIds = [];
+        // 注意：pinnedMessageIds 已在前面声明
         let privateMessageIds = [];
 
         // 加载置顶配置
