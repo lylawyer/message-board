@@ -459,6 +459,10 @@
         // 保存公告按钮事件
         document.getElementById('save-announcement-btn').addEventListener('click', saveAnnouncement);
 
+        // 全局变量：存储置顶和悄悄话的留言 ID 列表
+        let pinnedMessageIds = [];
+        let privateMessageIds = [];
+
         // 加载置顶配置
         async function loadPinnedConfig() {
             try {
@@ -474,6 +478,24 @@
                 }
             } catch (e) {
                 console.error('加载置顶配置失败:', e);
+            }
+        }
+
+        // 加载悄悄话配置
+        async function loadPrivateConfig() {
+            try {
+                const result = await client.db.from('messages').list()
+                    .eq('nickname', '系统')
+                    .eq('status', 'hidden');
+                
+                if (result.success && result.data && result.data.length > 0) {
+                    const configMsg = result.data.find(m => m.content && m.content.startsWith('[PRIVATE_CONFIG]'));
+                    if (configMsg) {
+                        privateMessageIds = JSON.parse(configMsg.content.replace('[PRIVATE_CONFIG] ', ''));
+                    }
+                }
+            } catch (e) {
+                console.error('加载悄悄话配置失败:', e);
             }
         }
 
@@ -500,8 +522,8 @@
         // 加载管理后台留言
         async function loadAdminMessages() {
             try {
-                // 先加载置顶配置和公告
-                await Promise.all([loadPinnedConfig(), loadAnnouncement()]);
+                // 先加载置顶配置、悄悄话配置和公告
+                await Promise.all([loadPinnedConfig(), loadPrivateConfig(), loadAnnouncement()]);
                 
                 const result = await client.db.from('messages').list().order('created_at', 'desc');
                 
@@ -519,7 +541,14 @@
                 }
                 
                 emptyEl.classList.add('hidden');
-                let messages = result.data.filter(m => m.nickname !== '系统' || !m.content?.startsWith('[PINNED_CONFIG]'));
+                let messages = result.data.filter(m => {
+                    if (m.nickname !== '系统') return true;
+                    if (!m.content) return false;
+                    // 过滤掉系统配置消息
+                    return !m.content.startsWith('[PINNED_CONFIG]') && 
+                           !m.content.startsWith('[PRIVATE_CONFIG]') && 
+                           !m.content.startsWith('[ANNOUNCEMENT]');
+                });
                 
                 // 置顶留言排在前面
                 messages.sort((a, b) => {
@@ -539,7 +568,7 @@
                 // 渲染列表
                 listEl.innerHTML = messages.map(msg => {
                     const isPinned = pinnedMessageIds.includes(msg.id);
-                    const isPrivate = msg.is_private === true || msg.is_private === 'true';
+                    const isPrivate = privateMessageIds.includes(msg.id);
                     return `
                     <div class="p-6 hover:bg-gray-50 transition-smooth ${msg.status === 'hidden' ? 'opacity-50' : ''} ${isPinned ? 'bg-yellow-50 border-l-4 border-yellow-400' : ''} ${isPrivate ? 'bg-blue-50' : ''}">
                         <div class="flex items-start justify-between">
