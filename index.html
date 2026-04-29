@@ -337,8 +337,21 @@
             }
         });
 
-        // 页面加载时获取留言
-        loadMessages();
+        // 页面加载时自动以访客身份登录，然后获取留言
+        async function init() {
+            try {
+                // 尝试以访客身份登录
+                await client.auth.login({
+                    user_name: 'guest',
+                    password: 'guest123'
+                });
+            } catch (e) {
+                console.log('访客登录失败，可能是已登录状态');
+            }
+            // 加载留言
+            loadMessages();
+        }
+        init();
     </script>
 </body>
 </html>
