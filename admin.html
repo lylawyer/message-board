@@ -378,9 +378,53 @@
             }
         });
 
+        // 全局变量：存储置顶的留言 ID 列表
+        let pinnedMessageIds = [];
+
+        // 加载置顶配置
+        async function loadPinnedConfig() {
+            try {
+                const result = await client.db.from('messages').list()
+                    .eq('nickname', '系统')
+                    .eq('status', 'hidden');
+                
+                if (result.success && result.data && result.data.length > 0) {
+                    const configMsg = result.data.find(m => m.content && m.content.startsWith('[PINNED_CONFIG]'));
+                    if (configMsg) {
+                        pinnedMessageIds = JSON.parse(configMsg.content.replace('[PINNED_CONFIG] ', ''));
+                    }
+                }
+            } catch (e) {
+                console.error('加载置顶配置失败:', e);
+            }
+        }
+
+        // 保存置顶配置
+        async function savePinnedConfig() {
+            try {
+                const result = await client.db.from('messages').list()
+                    .eq('nickname', '系统')
+                    .eq('status', 'hidden');
+                
+                if (result.success && result.data && result.data.length > 0) {
+                    const configMsg = result.data.find(m => m.content && m.content.startsWith('[PINNED_CONFIG]'));
+                    if (configMsg) {
+                        await client.db.from('messages').update()
+                            .set({ content: '[PINNED_CONFIG] ' + JSON.stringify(pinnedMessageIds) })
+                            .eq('id', configMsg.id);
+                    }
+                }
+            } catch (e) {
+                console.error('保存置顶配置失败:', e);
+            }
+        }
+
         // 加载管理后台留言
         async function loadAdminMessages() {
             try {
+                // 先加载置顶配置
+                await loadPinnedConfig();
+                
                 const result = await client.db.from('messages').list().order('created_at', 'desc');
                 
                 const loadingEl = document.getElementById('admin-loading');
@@ -397,12 +441,14 @@
                 }
                 
                 emptyEl.classList.add('hidden');
-                let messages = result.data;
+                let messages = result.data.filter(m => m.nickname !== '系统' || !m.content?.startsWith('[PINNED_CONFIG]'));
                 
                 // 置顶留言排在前面
                 messages.sort((a, b) => {
-                    if (a.pinned && !b.pinned) return -1;
-                    if (!a.pinned && b.pinned) return 1;
+                    const aPinned = pinnedMessageIds.includes(a.id);
+                    const bPinned = pinnedMessageIds.includes(b.id);
+                    if (aPinned && !bPinned) return -1;
+                    if (!aPinned && bPinned) return 1;
                     return new Date(b.created_at) - new Date(a.created_at);
                 });
                 
@@ -413,8 +459,10 @@
                 updateStats(total, replied, pending);
                 
                 // 渲染列表
-                listEl.innerHTML = messages.map(msg => `
-                    <div class="p-6 hover:bg-gray-50 transition-smooth ${msg.status === 'hidden' ? 'opacity-50' : ''} ${msg.pinned ? 'bg-yellow-50 border-l-4 border-yellow-400' : ''}">
+                listEl.innerHTML = messages.map(msg => {
+                    const isPinned = pinnedMessageIds.includes(msg.id);
+                    return `
+                    <div class="p-6 hover:bg-gray-50 transition-smooth ${msg.status === 'hidden' ? 'opacity-50' : ''} ${isPinned ? 'bg-yellow-50 border-l-4 border-yellow-400' : ''}">
                         <div class="flex items-start justify-between">
                             <div class="flex-1">
                                 <div class="flex items-center space-x-3 mb-2">
@@ -425,7 +473,7 @@
                                         <h3 class="font-semibold text-gray-900">${escapeHtml(msg.nickname)}</h3>
                                         <p class="text-xs text-gray-400">${formatDateTime(msg.created_at)}</p>
                                     </div>
-                                    ${msg.pinned ? '<span class="px-2 py-1 rounded-full text-xs bg-yellow-200 text-yellow-800">📌 已置顶</span>' : ''}
+                                    ${isPinned ? '<span class="px-2 py-1 rounded-full text-xs bg-yellow-200 text-yellow-800">📌 已置顶</span>' : ''}
                                     ${msg.status === 'hidden' ? '<span class="px-2 py-1 rounded-full text-xs bg-gray-200 text-gray-600">已隐藏</span>' : ''}
                                     ${msg.reply ? '<span class="px-2 py-1 rounded-full text-xs bg-green-100 text-green-600">已回复</span>' : '<span class="px-2 py-1 rounded-full text-xs bg-orange-100 text-orange-600">待回复</span>'}
                                 </div>
@@ -447,10 +495,10 @@
                             </div>
                             <div class="flex flex-col space-y-2 ml-4">
                                 <button 
-                                    onclick="togglePin('${msg.id}', ${msg.pinned || false})"
-                                    class="px-3 py-1.5 rounded-lg text-sm ${msg.pinned ? 'text-yellow-600 hover:bg-yellow-50' : 'text-gray-600 hover:bg-gray-50'} transition-smooth"
+                                    onclick="togglePin(${msg.id}, ${isPinned})"
+                                    class="px-3 py-1.5 rounded-lg text-sm ${isPinned ? 'text-yellow-600 hover:bg-yellow-50' : 'text-gray-600 hover:bg-gray-50'} transition-smooth"
                                 >
-                                    ${msg.pinned ? '取消置顶' : '置顶'}
+                                    ${isPinned ? '取消置顶' : '置顶'}
                                 </button>
                                 <button 
                                     onclick="openReplyModal('${msg.id}', '${escapeHtml(msg.nickname)}', '${escapeHtml(msg.content)}')"
@@ -473,7 +521,8 @@
                             </div>
                         </div>
                     </div>
-                `).join('');
+                `;
+                }).join('');
             } catch (error) {
                 console.error('加载留言失败:', error);
                 showToast('加载留言失败', 'error');
@@ -490,16 +539,21 @@
         // 切换置顶状态
         async function togglePin(id, isPinned) {
             try {
-                const result = await client.db.from('messages').update()
-                    .set({ pinned: !isPinned })
-                    .eq('id', id);
-                
-                if (result.success) {
-                    showToast(!isPinned ? '已置顶' : '已取消置顶', 'success');
-                    loadAdminMessages();
+                if (isPinned) {
+                    // 取消置顶
+                    pinnedMessageIds = pinnedMessageIds.filter(pid => pid !== id);
                 } else {
-                    showToast('操作失败', 'error');
+                    // 添加置顶
+                    if (!pinnedMessageIds.includes(id)) {
+                        pinnedMessageIds.push(id);
+                    }
                 }
+                
+                // 保存配置
+                await savePinnedConfig();
+                
+                showToast(!isPinned ? '已置顶' : '已取消置顶', 'success');
+                loadAdminMessages();
             } catch (error) {
                 console.error('操作失败:', error);
                 showToast('操作失败', 'error');
