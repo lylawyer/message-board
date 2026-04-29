@@ -279,35 +279,22 @@
             listEl.innerHTML = '';
 
             try {
-                // 获取公开留言
-                const publicResult = await fetchWithTimeout(
+                // 获取所有留言，统一过滤
+                const result = await fetchWithTimeout(
                     client.db.from('messages').list()
-                        .eq('status', 'visible')
-                        .order('created_at', 'desc')
-                );
-
-                // 获取所有悄悄话
-                const privateResult = await fetchWithTimeout(
-                    client.db.from('messages').list()
-                        .eq('status', 'private')
                         .order('created_at', 'desc')
                 );
 
                 loadingEl.classList.add('hidden');
 
-                if (publicResult.success || privateResult.success) {
-                    const publicMsgs = publicResult.data || [];
-                    const privateMsgs = privateResult.data || [];
-                    
-                    // 合并并排序
-                    const allMsgs = [...publicMsgs, ...privateMsgs].sort((a, b) => 
-                        new Date(b.created_at) - new Date(a.created_at)
-                    );
-                    
+                if (result.success) {
+                    const allMsgs = result.data || [];
+                    console.log('获取到留言数:', allMsgs.length);
+                    console.log('留言数据:', JSON.stringify(allMsgs.slice(0, 3), null, 2));
                     renderMessages(allMsgs);
                 } else {
                     errorEl.classList.remove('hidden');
-                    errorMsg.textContent = publicResult.message || '加载失败';
+                    errorMsg.textContent = result.message || '加载失败';
                 }
             } catch (error) {
                 loadingEl.classList.add('hidden');
@@ -323,13 +310,16 @@
             const emptyEl = document.getElementById('empty-state');
             const countEl = document.getElementById('message-count');
 
-            // 过滤：只显示公开留言 + 有回复的悄悄话
+            // 过滤：只显示公开留言(status=visible)和悄悄话(status=private)
             const visibleMsgs = messages.filter(msg => {
-                if (msg.status === 'visible') return true;
-                if (msg.status === 'private') return true; // 悄悄话总是显示占位
-                return false;
+                const status = msg.status || 'visible';
+                if (status === 'visible' || status === 'private') return true;
+                // 旧数据：hidden 状态不显示（管理员可见的私密留言）
+                if (status === 'hidden') return false;
+                return true;
             });
 
+            console.log('过滤后可见留言:', visibleMsgs.length, visibleMsgs.map(m => ({nickname: m.nickname, status: m.status})));
             countEl.textContent = visibleMsgs.length;
 
             if (visibleMsgs.length === 0) {
