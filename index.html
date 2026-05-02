@@ -547,6 +547,16 @@
             }).join('');
         }
 
+        // ==================== 自动登录（访客发帖） ====================
+        async function autoLoginGuest(nickname) {
+            if (client.getToken()) return; // 已登录
+            const guestName = 'g_' + nickname.replace(/[^a-zA-Z0-9_\u4e00-\u9fa5]/g, '_').substring(0, 20);
+            const guestPwd = 'Guest123!';
+            try { await client.auth.register({user_name: guestName, password: guestPwd}); } catch(e) {}
+            const r = await client.auth.login({user_name: guestName, password: guestPwd});
+            if (r.success) console.log('✅ 自动登录成功:', guestName);
+        }
+
         // ==================== 留言提交 ====================
         document.getElementById('message-form').addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -622,6 +632,11 @@
 
                 // 普通留言/悄悄话 - 使用 SDK
                 console.log('提交留言:', { nickname, content, status: isPrivate ? 'private' : 'visible' });
+                
+                // 自动登录（BaaS 后端要求写操作必须认证）
+                if (!adminLoggedIn) {
+                    await autoLoginGuest(nickname);
+                }
                 
                 // 准备提交数据
                 const submitData = {
